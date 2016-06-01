@@ -249,6 +249,15 @@ public abstract class MmsRequest {
     public void processResult(Context context, int result, byte[] response, int httpStatusCode) {
         final Uri messageUri = persistIfRequired(context, result, response);
 
+        /* Restore DDS before returning the result, to avoid possible concurrency from new execute()s */
+        if (getDefaultDataSubId() != mDataSubId) {
+            setDefaultDataSubId(mDataSubId);
+            // Give the switch some time to happen
+            try {
+                Thread.sleep(5 * 1000, 0/*nano*/);
+            } catch (InterruptedException e) {}
+        }
+
         // Return MMS HTTP request result via PendingIntent
         final PendingIntent pendingIntent = getPendingIntent();
         if (pendingIntent != null) {
@@ -275,9 +284,6 @@ public abstract class MmsRequest {
         }
 
         revokeUriPermission(context);
-        if (getDefaultDataSubId() != mDataSubId) {
-            setDefaultDataSubId(mDataSubId);
-        }
     }
 
     /**
