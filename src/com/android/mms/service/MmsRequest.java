@@ -173,7 +173,7 @@ public abstract class MmsRequest {
                         // Success
                         break;
                     } finally {
-                        networkManager.releaseNetwork(requestId);
+                        networkManager.releaseNetwork(requestId, this instanceof DownloadRequest);
                     }
                 } catch (ApnException e) {
                     LogUtil.e(requestId, "APN failure", e);
