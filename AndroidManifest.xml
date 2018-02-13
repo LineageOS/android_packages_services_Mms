@@ -30,6 +30,7 @@
     <protected-broadcast android:name="android.settings.ENABLE_MMS_DATA_REQUEST"/>
 
     <application android:label="@string/app_name"
+                 android:icon="@mipmap/ic_launcher"
                  android:process="com.android.phone"
                  android:usesCleartextTraffic="true">
 
