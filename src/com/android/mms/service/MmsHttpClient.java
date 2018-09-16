@@ -20,7 +20,6 @@ import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.LinkProperties;
 import android.net.Network;
-import android.net.dns.ResolvUtil;
 import android.os.Bundle;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SmsManager;
@@ -93,7 +92,7 @@ public class MmsHttpClient {
         mContext = context;
         // Mms server is on a carrier private network so it may not be resolvable using 3rd party
         // private dns
-        mNetwork = ResolvUtil.makeNetworkWithPrivateDnsBypass(network);
+        mNetwork = network.getPrivateDnsBypassingCopy();
         mConnectivityManager = connectivityManager;
     }
 
