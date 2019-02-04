@@ -21,11 +21,7 @@
           android:sharedUserId="android.uid.phone">
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <uses-permission android:name="android.permission.READ_SMS"
-                     android:dataSentOffDevice="userTriggered"
-                     android:dataSharedWithThirdParty="no"
-                     android:dataUsedForMonetization="no"
-                     android:dataRetentionTime="unlimited"/>
+    <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.WRITE_SMS"/>
     <uses-permission android:name="android.permission.BROADCAST_WAP_PUSH"/>
     <uses-permission android:name="android.permission.BIND_CARRIER_SERVICES"/>
