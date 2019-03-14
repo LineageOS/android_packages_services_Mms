@@ -137,6 +137,8 @@ public class MmsHttpClient {
             connection.setDoInput(true);
             connection.setConnectTimeout(
                     mmsConfig.getInt(SmsManager.MMS_CONFIG_HTTP_SOCKET_TIMEOUT));
+            connection.setReadTimeout(
+                    mmsConfig.getInt(SmsManager.MMS_CONFIG_HTTP_SOCKET_TIMEOUT));
             // ------- COMMON HEADERS ---------
             // Header: Accept
             connection.setRequestProperty(HEADER_ACCEPT, HEADER_VALUE_ACCEPT);
