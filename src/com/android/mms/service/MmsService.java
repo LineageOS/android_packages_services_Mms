@@ -138,11 +138,12 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
     }
 
     @Nullable
-    private String getCarrierMessagingServicePackageIfExists() {
+    private String getCarrierMessagingServicePackageIfExists(int subId) {
         Intent intent = new Intent(CarrierMessagingService.SERVICE_INTERFACE);
         TelephonyManager telephonyManager =
                 (TelephonyManager) this.getSystemService(Context.TELEPHONY_SERVICE);
-        List<String> carrierPackages = telephonyManager.getCarrierPackageNamesForIntent(intent);
+        List<String> carrierPackages = telephonyManager.getCarrierPackageNamesForIntentAndPhone(
+                intent, SubscriptionManager.getPhoneId(subId));
 
         if (carrierPackages == null || carrierPackages.size() != 1) {
             return null;
@@ -172,7 +173,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                     locationUrl, sentIntent, callingPkg, configOverrides, MmsService.this);
 
             final String carrierMessagingServicePackage =
-                    getCarrierMessagingServicePackageIfExists();
+                    getCarrierMessagingServicePackageIfExists(subId);
+
             if (carrierMessagingServicePackage != null) {
                 LogUtil.d(request.toString(), "sending message by carrier app");
                 request.trySendingByCarrierApp(MmsService.this, carrierMessagingServicePackage);
@@ -199,7 +201,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             final DownloadRequest request = new DownloadRequest(MmsService.this, subId, locationUrl,
                     contentUri, downloadedIntent, callingPkg, configOverrides, MmsService.this);
             final String carrierMessagingServicePackage =
-                    getCarrierMessagingServicePackageIfExists();
+                    getCarrierMessagingServicePackageIfExists(subId);
+
             if (carrierMessagingServicePackage != null) {
                 LogUtil.d(request.toString(), "downloading message by carrier app");
                 request.tryDownloadingByCarrierApp(MmsService.this, carrierMessagingServicePackage);
