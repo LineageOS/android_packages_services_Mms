@@ -29,6 +29,8 @@
     <uses-permission android:name="android.permission.BIND_CARRIER_MESSAGING_SERVICE"/>
     <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS"/>
 
+    <protected-broadcast android:name="android.settings.ENABLE_MMS_DATA_REQUEST"/>
+
     <application android:label="MmsService"
                  android:process="com.android.phone"
                  android:usesCleartextTraffic="true">
