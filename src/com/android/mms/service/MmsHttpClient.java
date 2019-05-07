@@ -456,7 +456,7 @@ public class MmsHttpClient {
      * Example: "LINE1" returns the phone number, etc.
      *
      * @param macro The macro name
-     * @param mmsConfig The MMS config which contains NAI suffix.
+     * @param mmsConfig The MMS config which contains NAI suffix and SIM country ISO to override.
      * @param subId The subscription ID used to get line number, etc.
      * @return The value of the defined macro
      */
@@ -465,7 +465,7 @@ public class MmsHttpClient {
         if (MACRO_LINE1.equals(macro)) {
             return getLine1(context, subId);
         } else if (MACRO_LINE1NOCOUNTRYCODE.equals(macro)) {
-            return getLine1NoCountryCode(context, subId);
+            return getLine1NoCountryCode(context, mmsConfig, subId);
         } else if (MACRO_NAI.equals(macro)) {
             return getNai(context, mmsConfig, subId);
         }
@@ -485,13 +485,16 @@ public class MmsHttpClient {
     /**
      * Returns the phone number (without country code) for the given subscription ID.
      */
-    private static String getLine1NoCountryCode(Context context, int subId) {
+    private static String getLine1NoCountryCode(Context context, Bundle mmsConfig, int subId) {
         final TelephonyManager telephonyManager = (TelephonyManager) context.getSystemService(
                 Context.TELEPHONY_SERVICE);
+        String countryIsoOverride =
+                mmsConfig.getString(SmsManager.MMS_CONFIG_SIM_COUNTRY_ISO_OVERRIDE);
         return PhoneUtils.getNationalNumber(
-                telephonyManager,
-                subId,
-                telephonyManager.getLine1Number(subId));
+            telephonyManager,
+            subId,
+            telephonyManager.getLine1Number(subId),
+            countryIsoOverride);
     }
 
     /**
