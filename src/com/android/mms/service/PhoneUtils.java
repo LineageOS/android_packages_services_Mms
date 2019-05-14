@@ -37,11 +37,17 @@ public class PhoneUtils {
      * @param telephonyManager
      * @param subId The SIM ID associated with this number
      * @param phoneText The input phone number text
+     * @param countryIsoOverride String to override sim country iso.
      * @return The formatted number or the original phone number if failed to parse
      */
     public static String getNationalNumber(TelephonyManager telephonyManager, int subId,
-            String phoneText) {
-        final String country = getSimOrDefaultLocaleCountry(telephonyManager, subId);
+            String phoneText, String countryIsoOverride) {
+        String country = getSimOrDefaultLocaleCountry(telephonyManager, subId);
+
+        if (!TextUtils.isEmpty(countryIsoOverride)) {
+            country = countryIsoOverride.toUpperCase();
+        }
+
         final PhoneNumberUtil phoneNumberUtil = PhoneNumberUtil.getInstance();
         final Phonenumber.PhoneNumber parsed = getParsedNumber(phoneNumberUtil, phoneText, country);
         if (parsed == null) {
