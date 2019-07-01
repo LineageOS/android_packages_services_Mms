@@ -137,6 +137,8 @@ public class MmsHttpClient {
             connection.setDoInput(true);
             connection.setConnectTimeout(
                     mmsConfig.getInt(SmsManager.MMS_CONFIG_HTTP_SOCKET_TIMEOUT));
+            connection.setReadTimeout(
+                    mmsConfig.getInt(SmsManager.MMS_CONFIG_HTTP_SOCKET_TIMEOUT));
             // ------- COMMON HEADERS ---------
             // Header: Accept
             connection.setRequestProperty(HEADER_ACCEPT, HEADER_VALUE_ACCEPT);
@@ -474,7 +476,7 @@ public class MmsHttpClient {
         if (MACRO_LINE1.equals(macro)) {
             return getLine1(context, subId);
         } else if (MACRO_LINE1NOCOUNTRYCODE.equals(macro)) {
-            return getLine1NoCountryCode(context, mmsConfig, subId);
+            return getLine1NoCountryCode(context, subId);
         } else if (MACRO_NAI.equals(macro)) {
             return getNai(context, mmsConfig, subId);
         }
@@ -494,16 +496,13 @@ public class MmsHttpClient {
     /**
      * Returns the phone number (without country code) for the given subscription ID.
      */
-    private static String getLine1NoCountryCode(Context context, Bundle mmsConfig, int subId) {
+    private static String getLine1NoCountryCode(Context context, int subId) {
         final TelephonyManager telephonyManager = (TelephonyManager) context.getSystemService(
                 Context.TELEPHONY_SERVICE);
-        String countryIsoOverride =
-                mmsConfig.getString(SmsManager.MMS_CONFIG_SIM_COUNTRY_ISO_OVERRIDE);
         return PhoneUtils.getNationalNumber(
-            telephonyManager,
-            subId,
-            telephonyManager.getLine1Number(subId),
-            countryIsoOverride);
+                telephonyManager,
+                subId,
+                telephonyManager.getLine1Number(subId));
     }
 
     /**
