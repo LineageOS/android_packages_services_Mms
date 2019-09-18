@@ -33,6 +33,7 @@ import android.service.carrier.ICarrierMessagingService;
 import android.telephony.CarrierMessagingServiceManager;
 import android.telephony.PhoneNumberUtils;
 import android.telephony.SmsManager;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 
 import com.android.internal.telephony.AsyncEmergencyContactNotifier;
@@ -148,7 +149,12 @@ public class SendRequest extends MmsRequest {
     }
 
     private boolean isEmergencyNumber(String address) {
-        return !TextUtils.isEmpty(address) && PhoneNumberUtils.isEmergencyNumber(mSubId, address);
+        if (!TextUtils.isEmpty(address)) {
+            TelephonyManager telephonyManager = ((TelephonyManager) mContext
+                .getSystemService(Context.TELEPHONY_SERVICE)).createForSubscriptionId(mSubId);
+            return telephonyManager.isEmergencyNumber(address);
+        }
+        return false;
     }
 
     @Override
