@@ -166,8 +166,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
     private String getCarrierMessagingServicePackageIfExists(int subId) {
         Intent intent = new Intent(CarrierMessagingService.SERVICE_INTERFACE);
         TelephonyManager telephonyManager = getTelephonyManager(subId);
-        List<String> carrierPackages = telephonyManager.getCarrierPackageNamesForIntentAndPhone(
-                intent, SubscriptionManager.getPhoneId(subId));
+        List<String> carrierPackages = telephonyManager.getCarrierPackageNamesForIntent(intent);
 
         if (carrierPackages == null || carrierPackages.size() != 1) {
             return null;
@@ -396,7 +395,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
          * @return true if the subId is active.
          */
         private boolean isActiveSubId(int subId) {
-            return SubscriptionManager.from(MmsService.this).isActiveSubId(subId);
+            return ((SubscriptionManager) getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE))
+                .isActiveSubscriptionId(subId);
         }
 
         /*
