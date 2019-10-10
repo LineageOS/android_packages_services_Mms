@@ -30,12 +30,10 @@ import android.provider.BlockedNumberContract;
 import android.provider.Telephony;
 import android.service.carrier.CarrierMessagingService;
 import android.service.carrier.ICarrierMessagingService;
-import android.telephony.CarrierMessagingServiceManager;
 import android.telephony.SmsManager;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 
-import com.android.internal.telephony.AsyncEmergencyContactNotifier;
 import com.android.internal.telephony.SmsApplication;
 import com.android.internal.telephony.SmsNumberUtils;
 import com.android.mms.service.exception.MmsHttpException;
