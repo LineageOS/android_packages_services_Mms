@@ -16,6 +16,9 @@
 
 package com.android.mms.service;
 
+import static com.google.android.mms.pdu.PduHeaders.MESSAGE_TYPE;
+import static com.google.android.mms.pdu.PduHeaders.MESSAGE_TYPE_SEND_REQ;
+
 import android.annotation.Nullable;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -194,9 +197,10 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
             // Make sure subId has MMS data
             if (!getTelephonyManager(subId).isDataEnabledForApn(ApnSetting.TYPE_MMS)) {
-                LogUtil.w("Subscription with id: " + subId
-                        + " cannot send MMS, data connection is not available");
-                sendSettingsIntentForFailedMms(/*isIncoming=*/ false, subId);
+                // ENABLE_MMS_DATA_REQUEST_REASON_OUTGOING_MMS is set for only SendReq case, since
+                // AcknowledgeInd and NotifyRespInd are parts of downloading sequence.
+                // TODO: Should consider ReadRecInd(Read Report)?
+                sendSettingsIntentForFailedMms(!isRawPduSendReq(contentUri), subId);
                 sendErrorInPendingIntent(sentIntent);
                 return;
             }
@@ -227,8 +231,6 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
             // Make sure subId has MMS data
             if (!getTelephonyManager(subId).isDataEnabledForApn(ApnSetting.TYPE_MMS)) {
-                LogUtil.w("Subscription with id: " + subId
-                        + " cannot download MMS, data connection is not available");
                 sendSettingsIntentForFailedMms(/*isIncoming=*/ true, subId);
                 sendErrorInPendingIntent(downloadedIntent);
                 return;
@@ -410,6 +412,22 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 }
             }
         }
+
+        private boolean isRawPduSendReq(Uri contentUri) {
+            // X-Mms-Message-Type is at the beginning of the message headers always. 1st byte is
+            // MMS-filed-name and 2nd byte is MMS-value for X-Mms-Message-Type field.
+            // See OMA-TS-MMS_ENC-V1_3-20110913-A, 7. Binary Encoding of ProtocolData Units
+            byte[] pduData = new byte[2];
+            int bytesRead = readPduBytesFromContentUri(contentUri, pduData);
+
+            // Return true for MESSAGE_TYPE_SEND_REQ only. Otherwise false even wrong PDU case.
+            if (bytesRead == 2
+                    && (pduData[0] & 0xFF) == MESSAGE_TYPE
+                    && (pduData[1] & 0xFF) == MESSAGE_TYPE_SEND_REQ) {
+                return true;
+            }
+            return false;
+        }
     };
 
     @Override
@@ -441,6 +459,9 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
     }
 
     private void sendSettingsIntentForFailedMms(boolean isIncoming, int subId) {
+        LogUtil.w("Subscription with id: " + subId
+                + " cannot " + (isIncoming ? "download" : "send")
+                + " MMS, data connection is not available");
         Intent intent = new Intent(Settings.ACTION_ENABLE_MMS_DATA_REQUEST);
 
         intent.putExtra(Settings.EXTRA_ENABLE_MMS_DATA_REQUEST_REASON,
@@ -836,38 +857,53 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
     }
 
     /**
-     * Read pdu from content provider uri
+     * Read pdu from content provider uri.
      *
-     * @param contentUri content provider uri from which to read
-     * @param maxSize    maximum number of bytes to read
-     * @return pdu bytes if succeeded else null
+     * @param contentUri content provider uri from which to read.
+     * @param maxSize maximum number of bytes to read.
+     * @return pdu bytes if succeeded else null.
      */
     public byte[] readPduFromContentUri(final Uri contentUri, final int maxSize) {
-        if (contentUri == null) {
+        // Request one extra byte to make sure file not bigger than maxSize
+        byte[] pduData = new byte[maxSize + 1];
+        int bytesRead = readPduBytesFromContentUri(contentUri, pduData);
+        if (bytesRead <= 0) {
             return null;
         }
-        Callable<byte[]> copyPduToArray = new Callable<byte[]>() {
-            public byte[] call() {
+        if (bytesRead > maxSize) {
+            LogUtil.e("PDU read is too large");
+            return null;
+        }
+        return Arrays.copyOf(pduData, bytesRead);
+    }
+
+    /**
+     * Read up to length of the pduData array from content provider uri.
+     *
+     * @param contentUri content provider uri from which to read.
+     * @param pduData the buffer into which the data is read.
+     * @return the total number of bytes read into the pduData.
+     */
+    public int readPduBytesFromContentUri(final Uri contentUri, byte[] pduData) {
+        if (contentUri == null) {
+            LogUtil.e("Uri is null");
+            return 0;
+        }
+        Callable<Integer> copyPduToArray = new Callable<Integer>() {
+            public Integer call() {
                 ParcelFileDescriptor.AutoCloseInputStream inStream = null;
                 try {
                     ContentResolver cr = MmsService.this.getContentResolver();
                     ParcelFileDescriptor pduFd = cr.openFileDescriptor(contentUri, "r");
                     inStream = new ParcelFileDescriptor.AutoCloseInputStream(pduFd);
-                    // Request one extra byte to make sure file not bigger than maxSize
-                    byte[] tempBody = new byte[maxSize + 1];
-                    int bytesRead = inStream.read(tempBody, 0, maxSize + 1);
-                    if (bytesRead == 0) {
-                        LogUtil.e("Read empty PDU");
-                        return null;
+                    int bytesRead = inStream.read(pduData, 0, pduData.length);
+                    if (bytesRead <= 0) {
+                        LogUtil.e("Empty PDU or at end of the file");
                     }
-                    if (bytesRead <= maxSize) {
-                        return Arrays.copyOf(tempBody, bytesRead);
-                    }
-                    LogUtil.e("PDU read is too large");
-                    return null;
+                    return bytesRead;
                 } catch (IOException ex) {
                     LogUtil.e("IO exception reading PDU", ex);
-                    return null;
+                    return 0;
                 } finally {
                     if (inStream != null) {
                         try {
@@ -879,14 +915,14 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             }
         };
 
-        final Future<byte[]> pendingResult = mPduTransferExecutor.submit(copyPduToArray);
+        final Future<Integer> pendingResult = mPduTransferExecutor.submit(copyPduToArray);
         try {
             return pendingResult.get(TASK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             // Typically a timeout occurred - cancel task
             pendingResult.cancel(true);
         }
-        return null;
+        return 0;
     }
 
     /**
