@@ -155,16 +155,6 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         }
     }
 
-    private int checkSubId(int subId) {
-        if (!SubscriptionManager.isValidSubscriptionId(subId)) {
-            throw new RuntimeException("Invalid subId " + subId);
-        }
-        if (subId == SubscriptionManager.DEFAULT_SUBSCRIPTION_ID) {
-            return SubscriptionManager.getDefaultSmsSubscriptionId();
-        }
-        return subId;
-    }
-
     @Nullable
     private String getCarrierMessagingServicePackageIfExists(int subId) {
         Intent intent = new Intent(CarrierMessagingService.SERVICE_INTERFACE);
@@ -187,7 +177,14 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             enforceSystemUid();
 
             // Make sure the subId is correct
-            subId = checkSubId(subId);
+            if (!SubscriptionManager.isValidSubscriptionId(subId)) {
+                LogUtil.e("Invalid subId " + subId);
+                sendErrorInPendingIntent(sentIntent);
+                return;
+            }
+            if (subId == SubscriptionManager.DEFAULT_SUBSCRIPTION_ID) {
+                subId = SubscriptionManager.getDefaultSmsSubscriptionId();
+            }
 
             // Make sure the subId is active
             if (!isActiveSubId(subId)) {
@@ -235,7 +232,14 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             enforceSystemUid();
 
             // Make sure the subId is correct
-            subId = checkSubId(subId);
+            if (!SubscriptionManager.isValidSubscriptionId(subId)) {
+                LogUtil.e("Invalid subId " + subId);
+                sendErrorInPendingIntent(downloadedIntent);
+                return;
+            }
+            if (subId == SubscriptionManager.DEFAULT_SUBSCRIPTION_ID) {
+                subId = SubscriptionManager.getDefaultSmsSubscriptionId();
+            }
 
             final DownloadRequest request = new DownloadRequest(MmsService.this, subId, locationUrl,
                     contentUri, downloadedIntent, callingPkg, configOverrides, MmsService.this);
@@ -259,10 +263,17 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             addSimRequest(request);
         }
 
+        @Override
         public Bundle getCarrierConfigValues(int subId) {
             LogUtil.d("getCarrierConfigValues");
             // Make sure the subId is correct
-            subId = checkSubId(subId);
+            if (!SubscriptionManager.isValidSubscriptionId(subId)) {
+                LogUtil.e("Invalid subId " + subId);
+                return new Bundle();
+            }
+            if (subId == SubscriptionManager.DEFAULT_SUBSCRIPTION_ID) {
+                subId = SubscriptionManager.getDefaultSmsSubscriptionId();
+            }
             final Bundle mmsConfig = MmsConfigManager.getInstance().getMmsConfigBySubId(subId);
             if (mmsConfig == null) {
                 return new Bundle();
