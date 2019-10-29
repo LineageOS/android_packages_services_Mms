@@ -195,16 +195,6 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 return;
             }
 
-            // Make sure subId has MMS data
-            if (!getTelephonyManager(subId).isDataEnabledForApn(ApnSetting.TYPE_MMS)) {
-                // ENABLE_MMS_DATA_REQUEST_REASON_OUTGOING_MMS is set for only SendReq case, since
-                // AcknowledgeInd and NotifyRespInd are parts of downloading sequence.
-                // TODO: Should consider ReadRecInd(Read Report)?
-                sendSettingsIntentForFailedMms(!isRawPduSendReq(contentUri), subId);
-                sendErrorInPendingIntent(sentIntent);
-                return;
-            }
-
             final SendRequest request = new SendRequest(MmsService.this, subId, contentUri,
                     locationUrl, sentIntent, callingPkg, configOverrides, MmsService.this);
 
@@ -214,20 +204,50 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             if (carrierMessagingServicePackage != null) {
                 LogUtil.d(request.toString(), "sending message by carrier app");
                 request.trySendingByCarrierApp(MmsService.this, carrierMessagingServicePackage);
-            } else {
-                addSimRequest(request);
+                return;
             }
+
+            // Make sure subId has MMS data. We intentionally do this after attempting to send via a
+            // carrier messaging service as the carrier messaging service may want to handle this in
+            // a different way and may not be restricted by whether data is enabled for an APN on a
+            // given subscription.
+            if (!getTelephonyManager(subId).isDataEnabledForApn(ApnSetting.TYPE_MMS)) {
+                // ENABLE_MMS_DATA_REQUEST_REASON_OUTGOING_MMS is set for only SendReq case, since
+                // AcknowledgeInd and NotifyRespInd are parts of downloading sequence.
+                // TODO: Should consider ReadRecInd(Read Report)?
+                sendSettingsIntentForFailedMms(!isRawPduSendReq(contentUri), subId);
+                sendErrorInPendingIntent(sentIntent);
+                return;
+            }
+
+            addSimRequest(request);
         }
 
         @Override
         public void downloadMessage(int subId, String callingPkg, String locationUrl,
                 Uri contentUri, Bundle configOverrides,
                 PendingIntent downloadedIntent) {
+            // If the subId is no longer active it could be caused by an MVNO using multiple
+            // subIds, so we should try to download anyway.
+            // TODO: Fail fast when downloading will fail (i.e. SIM swapped)
             LogUtil.d("downloadMessage: " + MmsHttpClient.redactUrlForNonVerbose(locationUrl));
+
             enforceSystemUid();
 
             // Make sure the subId is correct
             subId = checkSubId(subId);
+
+            final DownloadRequest request = new DownloadRequest(MmsService.this, subId, locationUrl,
+                    contentUri, downloadedIntent, callingPkg, configOverrides, MmsService.this);
+
+            final String carrierMessagingServicePackage =
+                    getCarrierMessagingServicePackageIfExists(subId);
+
+            if (carrierMessagingServicePackage != null) {
+                LogUtil.d(request.toString(), "downloading message by carrier app");
+                request.tryDownloadingByCarrierApp(MmsService.this, carrierMessagingServicePackage);
+                return;
+            }
 
             // Make sure subId has MMS data
             if (!getTelephonyManager(subId).isDataEnabledForApn(ApnSetting.TYPE_MMS)) {
@@ -236,22 +256,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 return;
             }
 
-            // If the subId is no longer active it could be caused by
-            // an MVNO using multiple subIds, so we should try to
-            // download anyway.
-            // TODO: Fail fast when downloading will fail (i.e. SIM swapped)
-
-            final DownloadRequest request = new DownloadRequest(MmsService.this, subId, locationUrl,
-                    contentUri, downloadedIntent, callingPkg, configOverrides, MmsService.this);
-            final String carrierMessagingServicePackage =
-                    getCarrierMessagingServicePackageIfExists(subId);
-
-            if (carrierMessagingServicePackage != null) {
-                LogUtil.d(request.toString(), "downloading message by carrier app");
-                request.tryDownloadingByCarrierApp(MmsService.this, carrierMessagingServicePackage);
-            } else {
-                addSimRequest(request);
-            }
+            addSimRequest(request);
         }
 
         public Bundle getCarrierConfigValues(int subId) {
@@ -736,7 +741,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                     Telephony.Threads.CONTENT_URI,
                     values,
                     ARCHIVE_CONVERSATION_SELECTION,
-                    new String[] {Long.toString(conversationId)}) != 1) {
+                    new String[]{Long.toString(conversationId)}) != 1) {
                 LogUtil.e("archiveConversation: failed to update database");
                 return false;
             }
@@ -860,7 +865,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
      * Read pdu from content provider uri.
      *
      * @param contentUri content provider uri from which to read.
-     * @param maxSize maximum number of bytes to read.
+     * @param maxSize    maximum number of bytes to read.
      * @return pdu bytes if succeeded else null.
      */
     public byte[] readPduFromContentUri(final Uri contentUri, final int maxSize) {
@@ -881,7 +886,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
      * Read up to length of the pduData array from content provider uri.
      *
      * @param contentUri content provider uri from which to read.
-     * @param pduData the buffer into which the data is read.
+     * @param pduData    the buffer into which the data is read.
      * @return the total number of bytes read into the pduData.
      */
     public int readPduBytesFromContentUri(final Uri contentUri, byte[] pduData) {
