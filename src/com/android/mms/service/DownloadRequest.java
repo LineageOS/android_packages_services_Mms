@@ -33,7 +33,7 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Telephony;
 import android.service.carrier.CarrierMessagingService;
-import android.service.carrier.ICarrierMessagingService;
+import android.service.carrier.CarrierMessagingServiceWrapper;
 import android.telephony.SmsManager;
 import android.text.TextUtils;
 
@@ -269,7 +269,7 @@ public class DownloadRequest extends MmsRequest {
     /**
      * Downloads the MMS through through the carrier app.
      */
-    private final class CarrierDownloadManager extends CarrierMessagingServiceManager {
+    private final class CarrierDownloadManager extends CarrierMessagingServiceWrapper {
         // Initialized in downloadMms
         private volatile CarrierDownloadCompleteCallback mCarrierDownloadCallback;
 
@@ -286,11 +286,11 @@ public class DownloadRequest extends MmsRequest {
         }
 
         @Override
-        protected void onServiceReady(ICarrierMessagingService carrierMessagingService) {
+        public void onServiceReady() {
             try {
-                carrierMessagingService.downloadMms(mContentUri, mSubId, Uri.parse(mLocationUrl),
+                downloadMms(mContentUri, mSubId, Uri.parse(mLocationUrl),
                         mCarrierDownloadCallback);
-            } catch (RemoteException e) {
+            } catch (RuntimeException e) {
                 LogUtil.e("Exception downloading MMS using the carrier messaging service: " + e, e);
                 mCarrierDownloadCallback.onDownloadMmsComplete(
                         CarrierMessagingService.DOWNLOAD_STATUS_RETRY_ON_CARRIER_NETWORK);
