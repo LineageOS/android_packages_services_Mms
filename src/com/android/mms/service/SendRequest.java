@@ -25,11 +25,10 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Bundle;
-import android.os.RemoteException;
 import android.provider.BlockedNumberContract;
 import android.provider.Telephony;
 import android.service.carrier.CarrierMessagingService;
-import android.service.carrier.ICarrierMessagingService;
+import android.service.carrier.CarrierMessagingServiceWrapper;
 import android.telephony.SmsManager;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
@@ -384,7 +383,7 @@ public class SendRequest extends MmsRequest {
     /**
      * Sends the MMS through through the carrier app.
      */
-    private final class CarrierSendManager extends CarrierMessagingServiceManager {
+    private final class CarrierSendManager extends CarrierMessagingServiceWrapper {
         // Initialized in sendMms
         private volatile CarrierSendCompleteCallback mCarrierSendCompleteCallback;
 
@@ -402,15 +401,14 @@ public class SendRequest extends MmsRequest {
         }
 
         @Override
-        protected void onServiceReady(ICarrierMessagingService carrierMessagingService) {
+        public void onServiceReady() {
             try {
                 Uri locationUri = null;
                 if (mLocationUrl != null) {
                     locationUri = Uri.parse(mLocationUrl);
                 }
-                carrierMessagingService.sendMms(mPduUri, mSubId, locationUri,
-                        mCarrierSendCompleteCallback);
-            } catch (RemoteException e) {
+                sendMms(mPduUri, mSubId, locationUri, mCarrierSendCompleteCallback);
+            } catch (RuntimeException e) {
                 LogUtil.e("Exception sending MMS using the carrier messaging service: " + e, e);
                 mCarrierSendCompleteCallback.onSendMmsComplete(
                         CarrierMessagingService.SEND_STATUS_RETRY_ON_CARRIER_NETWORK,
