@@ -21,6 +21,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Configuration;
+import android.os.BaseBundle;
 import android.os.Bundle;
 import android.os.PersistableBundle;
 import android.telephony.CarrierConfigManager;
@@ -140,6 +141,86 @@ public class MmsConfigManager {
     }
 
     /**
+     * Filters a bundle to only contain MMS config variables.
+     *
+     * This is for use with bundles returned by {@link CarrierConfigManager} which contain MMS
+     * config and unrelated config. It is assumed that all MMS_CONFIG_* keys are present in the
+     * supplied bundle.
+     *
+     * @param config a Bundle that contains MMS config variables and possibly more.
+     * @return a new Bundle that only contains the MMS_CONFIG_* keys defined above.
+     * @hide
+     */
+    private static Bundle getMmsConfig(BaseBundle config) {
+        Bundle filtered = new Bundle();
+        filtered.putBoolean(SmsManager.MMS_CONFIG_APPEND_TRANSACTION_ID,
+                config.getBoolean(SmsManager.MMS_CONFIG_APPEND_TRANSACTION_ID));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_MMS_ENABLED,
+                config.getBoolean(SmsManager.MMS_CONFIG_MMS_ENABLED));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_GROUP_MMS_ENABLED,
+                config.getBoolean(SmsManager.MMS_CONFIG_GROUP_MMS_ENABLED));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_NOTIFY_WAP_MMSC_ENABLED,
+                config.getBoolean(SmsManager.MMS_CONFIG_NOTIFY_WAP_MMSC_ENABLED));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_ALIAS_ENABLED,
+                config.getBoolean(SmsManager.MMS_CONFIG_ALIAS_ENABLED));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_ALLOW_ATTACH_AUDIO,
+                config.getBoolean(SmsManager.MMS_CONFIG_ALLOW_ATTACH_AUDIO));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_MULTIPART_SMS_ENABLED,
+                config.getBoolean(SmsManager.MMS_CONFIG_MULTIPART_SMS_ENABLED));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_SMS_DELIVERY_REPORT_ENABLED,
+                config.getBoolean(SmsManager.MMS_CONFIG_SMS_DELIVERY_REPORT_ENABLED));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_SUPPORT_MMS_CONTENT_DISPOSITION,
+                config.getBoolean(SmsManager.MMS_CONFIG_SUPPORT_MMS_CONTENT_DISPOSITION));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_SEND_MULTIPART_SMS_AS_SEPARATE_MESSAGES,
+                config.getBoolean(SmsManager.MMS_CONFIG_SEND_MULTIPART_SMS_AS_SEPARATE_MESSAGES));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_MMS_READ_REPORT_ENABLED,
+                config.getBoolean(SmsManager.MMS_CONFIG_MMS_READ_REPORT_ENABLED));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_MMS_DELIVERY_REPORT_ENABLED,
+                config.getBoolean(SmsManager.MMS_CONFIG_MMS_DELIVERY_REPORT_ENABLED));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_CLOSE_CONNECTION,
+                config.getBoolean(SmsManager.MMS_CONFIG_CLOSE_CONNECTION));
+        filtered.putInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE,
+                config.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE));
+        filtered.putInt(SmsManager.MMS_CONFIG_MAX_IMAGE_WIDTH,
+                config.getInt(SmsManager.MMS_CONFIG_MAX_IMAGE_WIDTH));
+        filtered.putInt(SmsManager.MMS_CONFIG_MAX_IMAGE_HEIGHT,
+                config.getInt(SmsManager.MMS_CONFIG_MAX_IMAGE_HEIGHT));
+        filtered.putInt(SmsManager.MMS_CONFIG_RECIPIENT_LIMIT,
+                config.getInt(SmsManager.MMS_CONFIG_RECIPIENT_LIMIT));
+        filtered.putInt(SmsManager.MMS_CONFIG_ALIAS_MIN_CHARS,
+                config.getInt(SmsManager.MMS_CONFIG_ALIAS_MIN_CHARS));
+        filtered.putInt(SmsManager.MMS_CONFIG_ALIAS_MAX_CHARS,
+                config.getInt(SmsManager.MMS_CONFIG_ALIAS_MAX_CHARS));
+        filtered.putInt(SmsManager.MMS_CONFIG_SMS_TO_MMS_TEXT_THRESHOLD,
+                config.getInt(SmsManager.MMS_CONFIG_SMS_TO_MMS_TEXT_THRESHOLD));
+        filtered.putInt(SmsManager.MMS_CONFIG_SMS_TO_MMS_TEXT_LENGTH_THRESHOLD,
+                config.getInt(SmsManager.MMS_CONFIG_SMS_TO_MMS_TEXT_LENGTH_THRESHOLD));
+        filtered.putInt(SmsManager.MMS_CONFIG_MESSAGE_TEXT_MAX_SIZE,
+                config.getInt(SmsManager.MMS_CONFIG_MESSAGE_TEXT_MAX_SIZE));
+        filtered.putInt(SmsManager.MMS_CONFIG_SUBJECT_MAX_LENGTH,
+                config.getInt(SmsManager.MMS_CONFIG_SUBJECT_MAX_LENGTH));
+        filtered.putInt(SmsManager.MMS_CONFIG_HTTP_SOCKET_TIMEOUT,
+                config.getInt(SmsManager.MMS_CONFIG_HTTP_SOCKET_TIMEOUT));
+        filtered.putString(SmsManager.MMS_CONFIG_UA_PROF_TAG_NAME,
+                config.getString(SmsManager.MMS_CONFIG_UA_PROF_TAG_NAME));
+        filtered.putString(SmsManager.MMS_CONFIG_USER_AGENT,
+                config.getString(SmsManager.MMS_CONFIG_USER_AGENT));
+        filtered.putString(SmsManager.MMS_CONFIG_UA_PROF_URL,
+                config.getString(SmsManager.MMS_CONFIG_UA_PROF_URL));
+        filtered.putString(SmsManager.MMS_CONFIG_HTTP_PARAMS,
+                config.getString(SmsManager.MMS_CONFIG_HTTP_PARAMS));
+        filtered.putString(SmsManager.MMS_CONFIG_EMAIL_GATEWAY_NUMBER,
+                config.getString(SmsManager.MMS_CONFIG_EMAIL_GATEWAY_NUMBER));
+        filtered.putString(SmsManager.MMS_CONFIG_NAI_SUFFIX,
+                config.getString(SmsManager.MMS_CONFIG_NAI_SUFFIX));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_SHOW_CELL_BROADCAST_APP_LINKS,
+                config.getBoolean(SmsManager.MMS_CONFIG_SHOW_CELL_BROADCAST_APP_LINKS));
+        filtered.putBoolean(SmsManager.MMS_CONFIG_SUPPORT_HTTP_CHARSET_HEADER,
+                config.getBoolean(SmsManager.MMS_CONFIG_SUPPORT_HTTP_CHARSET_HEADER));
+        return filtered;
+    }
+
+    /**
      * This loads the MMS config for each active subscription.
      *
      * MMS config is fetched from CarrierConfigManager and filtered to only include MMS config
@@ -159,7 +240,7 @@ public class MmsConfigManager {
         for (SubscriptionInfo sub : subs) {
             final int subId = sub.getSubscriptionId();
             PersistableBundle config = configManager.getConfigForSubId(subId);
-            newConfigMap.put(subId, SmsManager.getMmsConfig(config));
+            newConfigMap.put(subId, getMmsConfig(config));
         }
         synchronized(mSubIdConfigMap) {
             mSubIdConfigMap.clear();
