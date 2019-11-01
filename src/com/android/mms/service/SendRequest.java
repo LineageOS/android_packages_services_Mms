@@ -22,9 +22,11 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.RemoteException;
+import android.provider.BlockedNumberContract;
 import android.provider.Telephony;
 import android.service.carrier.CarrierMessagingService;
 import android.service.carrier.ICarrierMessagingService;
@@ -126,7 +128,19 @@ public class SendRequest extends MmsRequest {
             for (EncodedStringValue encodedStringValue : sendReq.getTo()) {
                 if (isEmergencyNumber(encodedStringValue.getString())) {
                     LogUtil.i(getRequestId(), "Notifying emergency contact");
-                    new AsyncEmergencyContactNotifier(mContext).execute();
+                    new AsyncTask<Void, Void, Void>() {
+                        @Override
+                        protected Void doInBackground(Void... voids) {
+                            try {
+                                BlockedNumberContract.SystemContract
+                                    .notifyEmergencyContact(mContext);
+                            } catch (Exception e) {
+                                LogUtil.e(getRequestId(),
+                                    "Exception notifying emergency contact: " + e);
+                            }
+                            return null;
+                        }
+                    }.execute();
                     return;
                 }
             }
