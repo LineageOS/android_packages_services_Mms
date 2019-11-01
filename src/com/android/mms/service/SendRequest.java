@@ -30,7 +30,6 @@ import android.provider.BlockedNumberContract;
 import android.provider.Telephony;
 import android.service.carrier.CarrierMessagingService;
 import android.service.carrier.ICarrierMessagingService;
-import android.telephony.CarrierMessagingServiceManager;
 import android.telephony.SmsManager;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
