@@ -23,7 +23,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.service.carrier.CarrierMessagingService;
-import android.service.carrier.ICarrierMessagingCallback;
+import android.service.carrier.CarrierMessagingServiceWrapper.CarrierMessagingCallbackWrapper;
 import android.telephony.SmsManager;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
@@ -341,7 +341,7 @@ public abstract class MmsRequest {
     /**
      * Base class for handling carrier app send / download result.
      */
-    protected abstract class CarrierMmsActionCallback extends ICarrierMessagingCallback.Stub {
+    protected abstract class CarrierMmsActionCallback extends CarrierMessagingCallbackWrapper {
         @Override
         public void onSendSmsComplete(int result, int messageRef) {
             LogUtil.e("Unexpected onSendSmsComplete call with result: " + result);
