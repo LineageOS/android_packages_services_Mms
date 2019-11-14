@@ -20,7 +20,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.res.Configuration;
 import android.os.BaseBundle;
 import android.os.Bundle;
 import android.os.PersistableBundle;
@@ -108,11 +107,6 @@ public class MmsConfigManager {
         new Thread() {
             @Override
             public void run() {
-                Configuration configuration = mContext.getResources().getConfiguration();
-                // Always put the mnc/mcc in the log so we can tell which mms_config.xml
-                // was loaded.
-                LogUtil.i("MmsConfigManager loads in background mcc/mnc: " +
-                        configuration.mcc + "/" + configuration.mnc);
                 load(mContext);
             }
         }.start();
@@ -239,6 +233,9 @@ public class MmsConfigManager {
                 (CarrierConfigManager) context.getSystemService(Context.CARRIER_CONFIG_SERVICE);
         for (SubscriptionInfo sub : subs) {
             final int subId = sub.getSubscriptionId();
+            LogUtil.i("MmsConfigManager loads mms config for "
+                    + sub.getMccString() + "/" +  sub.getMncString()
+                    + ", CarrierId " + sub.getCarrierId());
             PersistableBundle config = configManager.getConfigForSubId(subId);
             newConfigMap.put(subId, getMmsConfig(config));
         }
