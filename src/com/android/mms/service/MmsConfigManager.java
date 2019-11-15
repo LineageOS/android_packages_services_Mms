@@ -27,11 +27,7 @@ import android.telephony.CarrierConfigManager;
 import android.telephony.SmsManager;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
-import android.telephony.SubscriptionManager.OnSubscriptionsChangedListener;
 import android.util.ArrayMap;
-
-import com.android.internal.telephony.IccCardConstants;
-import com.android.internal.telephony.TelephonyIntents;
 
 import java.util.List;
 import java.util.Map;
@@ -54,52 +50,22 @@ public class MmsConfigManager {
     private Context mContext;
     private SubscriptionManager mSubscriptionManager;
 
-    /**
-     * This receiver listens for changes made to SubInfoRecords and for a broadcast telling us
-     * the TelephonyManager has loaded the information needed in order to get the mcc/mnc's for
-     * each subscription Id. When either of these broadcasts are received, we rebuild the
-     * MmsConfig table.
-     *
-     */
-    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            LogUtil.i("MmsConfigManager receiver action: " + action);
-            if (action.equals(TelephonyIntents.ACTION_SIM_STATE_CHANGED) ||
-                    action.equals(CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED)) {
-                loadInBackground();
-            }
-        }
-    };
-
-    private final OnSubscriptionsChangedListener mOnSubscriptionsChangedListener =
-            new OnSubscriptionsChangedListener() {
-        @Override
-        public void onSubscriptionsChanged() {
-            loadInBackground();
-        }
-    };
-
+    /** This receiver listens to ACTION_CARRIER_CONFIG_CHANGED to load the MMS config. */
+    private final BroadcastReceiver mReceiver =
+            new BroadcastReceiver() {
+                public void onReceive(Context context, Intent intent) {
+                    LogUtil.i("MmsConfigManager receives ACTION_CARRIER_CONFIG_CHANGED");
+                    loadInBackground();
+                }
+            };
 
     public void init(final Context context) {
         mContext = context;
         mSubscriptionManager = SubscriptionManager.from(context);
-
-        // TODO: When this object "finishes" we should unregister.
-        final IntentFilter intentFilterLoaded =
-                new IntentFilter(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
-        intentFilterLoaded.addAction(CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED);
-        context.registerReceiver(mReceiver, intentFilterLoaded);
-
-        // TODO: When this object "finishes" we should unregister by invoking
-        // SubscriptionManager.getInstance(mContext).unregister(mOnSubscriptionsChangedListener);
-        // This is not strictly necessary because it will be unregistered if the
-        // notification fails but it is good form.
-
-        // Register for SubscriptionInfo list changes which is guaranteed
-        // to invoke onSubscriptionsChanged the first time.
-        SubscriptionManager.from(mContext).addOnSubscriptionsChangedListener(
-                mOnSubscriptionsChangedListener);
+        context.registerReceiver(
+                mReceiver, new IntentFilter(CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED));
+        LogUtil.i("MmsConfigManager loads mms config in init()");
+        load(context);
     }
 
     private void loadInBackground() {
@@ -115,11 +81,9 @@ public class MmsConfigManager {
     /**
      * Find and return the MMS config for a particular subscription id.
      *
-     * @param subId Subscription id of the desired MMS config bundle
-     * @return MMS config bundle for the particular subscription id. This function can return null
-     *         if the MMS config cannot be found or if this function is called before the
-     *         TelephonyManager has set up the SIMs, or if loadInBackground is still spawning a
-     *         thread after a recent LISTEN_SUBSCRIPTION_INFO_LIST_CHANGED event.
+     * @param subId Subscription Id of the desired MMS config bundle
+     * @return MMS config bundle for the particular subscription Id. This function can return null
+     *         if the MMS config is not loaded yet.
      */
     public Bundle getMmsConfigBySubId(int subId) {
         Bundle mmsConfig;
