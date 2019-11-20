@@ -454,7 +454,9 @@ public class SendRequest extends MmsRequest {
         try {
             LogUtil.i("notifyEmergencyContact; caller=%s", context.getOpPackageName());
             context.getContentResolver().call(
-                    BlockedNumberContract.AUTHORITY_URI, BlockedNumberContract.METHOD_NOTIFY_EMERGENCY_CONTACT, null, null);
+                    BlockedNumberContract.AUTHORITY_URI,
+                    BlockedNumberContract.METHOD_NOTIFY_EMERGENCY_CONTACT,
+                    null, null);
         } catch (NullPointerException | IllegalArgumentException ex) {
             // The content resolver can throw an NPE or IAE; we don't want to crash Telecom if
             // either of these happen.
