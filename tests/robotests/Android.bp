@@ -9,10 +9,10 @@ android_robolectric_test {
 
     java_resource_dirs: ["config"],
 
-    static_libs: ["testng"],
+    static_libs: [
+        "androidx.test.core",
+        "testng",
+    ],
 
     instrumentation_for: "MmsService",
 }
-
-
-
