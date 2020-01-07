@@ -18,7 +18,6 @@ package com.android.mms.service;
 
 import android.content.Context;
 import android.database.Cursor;
-import android.database.sqlite.SqliteWrapper;
 import android.net.NetworkUtils;
 import android.net.Uri;
 import android.provider.Telephony;
@@ -101,14 +100,12 @@ public class ApnSettings {
             selectionArgs = new String[]{apnName};
         }
 
-        try (Cursor cursor = SqliteWrapper.query(
-                context,
-                context.getContentResolver(),
-                Uri.withAppendedPath(Telephony.Carriers.CONTENT_URI, "/subId/" + subId),
-                APN_PROJECTION,
-                selection,
-                selectionArgs,
-                null/*sortOrder*/)) {
+        try (Cursor cursor = context.getContentResolver().query(
+                    Uri.withAppendedPath(Telephony.Carriers.CONTENT_URI, "/subId/" + subId),
+                    APN_PROJECTION,
+                    selection,
+                    selectionArgs,
+                    null/*sortOrder*/)) {
 
             ApnSettings settings = getApnSettingsFromCursor(cursor, requestId);
             if (settings != null) {
