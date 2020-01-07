@@ -263,24 +263,6 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         }
 
         @Override
-        public Bundle getCarrierConfigValues(int subId) {
-            LogUtil.d("getCarrierConfigValues");
-            // Make sure the subId is correct
-            if (!SubscriptionManager.isValidSubscriptionId(subId)) {
-                LogUtil.e("Invalid subId " + subId);
-                return new Bundle();
-            }
-            if (subId == SubscriptionManager.DEFAULT_SUBSCRIPTION_ID) {
-                subId = SubscriptionManager.getDefaultSmsSubscriptionId();
-            }
-            final Bundle mmsConfig = MmsConfigManager.getInstance().getMmsConfigBySubId(subId);
-            if (mmsConfig == null) {
-                return new Bundle();
-            }
-            return mmsConfig;
-        }
-
-        @Override
         public Uri importTextMessage(String callingPkg, String address, int type, String text,
                 long timestampMillis, boolean seen, boolean read) {
             LogUtil.d("importTextMessage");
