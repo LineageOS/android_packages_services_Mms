@@ -39,6 +39,7 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.provider.Telephony;
+import android.security.NetworkSecurityPolicy;
 import android.service.carrier.CarrierMessagingService;
 import android.telephony.SmsManager;
 import android.telephony.SubscriptionManager;
@@ -537,6 +538,9 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         LogUtil.d("onCreate");
         // Load mms_config
         MmsConfigManager.getInstance().init(this);
+
+        NetworkSecurityPolicy.getInstance().setCleartextTrafficPermitted(true);
+
         // Initialize running request state
         for (int i = 0; i < mRunningRequestExecutors.length; i++) {
             mRunningRequestExecutors[i] = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
