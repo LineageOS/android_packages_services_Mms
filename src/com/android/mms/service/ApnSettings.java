@@ -21,6 +21,7 @@ import android.database.Cursor;
 import android.net.NetworkUtils;
 import android.net.Uri;
 import android.provider.Telephony;
+import android.telephony.data.ApnSetting;
 import android.text.TextUtils;
 
 import com.android.mms.service.exception.ApnException;
@@ -32,10 +33,6 @@ import java.net.URISyntaxException;
  * APN settings used for MMS transactions
  */
 public class ApnSettings {
-
-    // APN types needed in the carrier table.
-    final static String APN_TYPE_ALL = "*";
-    final static String APN_TYPE_MMS = "mms";
 
     // MMSC URL
     private final String mServiceCenter;
@@ -130,7 +127,7 @@ public class ApnSettings {
         while (cursor.moveToNext()) {
             // Read values from APN settings
             if (isValidApnType(
-                    cursor.getString(COLUMN_TYPE), APN_TYPE_MMS)) {
+                    cursor.getString(COLUMN_TYPE), ApnSetting.TYPE_MMS_STRING)) {
                 String mmscUrl = trimWithNullCheck(cursor.getString(COLUMN_MMSC));
                 if (TextUtils.isEmpty(mmscUrl)) {
                     continue;
@@ -207,13 +204,13 @@ public class ApnSettings {
     }
 
     private static boolean isValidApnType(String types, String requestType) {
-        // If APN type is unspecified, assume APN_TYPE_ALL.
+        // If APN type is unspecified, assume TYPE_ALL_STRING.
         if (TextUtils.isEmpty(types)) {
             return true;
         }
         for (String type : types.split(",")) {
             type = type.trim();
-            if (type.equals(requestType) || type.equals(APN_TYPE_ALL)) {
+            if (type.equals(requestType) || type.equals(ApnSetting.TYPE_ALL_STRING)) {
                 return true;
             }
         }
