@@ -168,7 +168,7 @@ public class MmsHttpClient {
             // Some carriers require that the HTTP connection's socket is closed
             // after an MMS request/response is complete. In these cases keep alive
             // is disabled. See https://tools.ietf.org/html/rfc7230#section-6.6
-            if (mmsConfig.getBoolean(SmsManager.MMS_CONFIG_CLOSE_CONNECTION, false)) {
+            if (mmsConfig.getBoolean(CarrierConfigManager.KEY_MMS_CLOSE_CONNECTION_BOOL, false)) {
                 LogUtil.i(requestId, "HTTP: Connection close after request");
                 connection.setRequestProperty(HEADER_CONNECTION, HEADER_CONNECTION_CLOSE);
             }
