@@ -26,10 +26,10 @@ import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.Telephony;
+import android.telephony.data.ApnSetting;
 
 import androidx.test.core.app.ApplicationProvider;
 
-import com.android.internal.telephony.PhoneConstants;
 import com.android.mms.service.exception.ApnException;
 
 import org.junit.Before;
@@ -84,7 +84,7 @@ public final class ApnSettingsTest {
 
     private void createApnSettingsCursor(String mmscUrl, String mmsProxy, String proxyPort) {
         Object[][] apnValues =
-                {new Object[]{PhoneConstants.APN_TYPE_MMS, mmscUrl, mmsProxy, proxyPort}};
+                {new Object[]{ApnSetting.TYPE_MMS_STRING, mmscUrl, mmsProxy, proxyPort}};
         RoboCursor cursor = new RoboCursor();
         cursor.setResults(apnValues);
         cursor.setColumnNames(Arrays.asList(Telephony.Carriers.TYPE, Telephony.Carriers.MMSC,
