@@ -130,7 +130,8 @@ public class SendRequest extends MmsRequest {
                         @Override
                         protected Void doInBackground(Void... voids) {
                             try {
-                                notifyEmergencyContact(mContext);
+                                BlockedNumberContract.SystemContract
+                                        .notifyEmergencyContact(mContext);
                             } catch (Exception e) {
                                 LogUtil.e(getRequestId(),
                                     "Exception notifying emergency contact. messageId: "
@@ -458,23 +459,6 @@ public class SendRequest extends MmsRequest {
         public void onDownloadMmsComplete(int result) {
             LogUtil.e("Unexpected onDownloadMmsComplete call for messageId " + mMessageId
                     + " with result: " + result);
-        }
-    }
-
-    /**
-     * Notifies the provider that emergency services were contacted by the user.
-     */
-    private void notifyEmergencyContact(Context context) {
-        try {
-            LogUtil.i("notifyEmergencyContact; caller=%s", context.getOpPackageName());
-            context.getContentResolver().call(
-                    BlockedNumberContract.AUTHORITY_URI,
-                    BlockedNumberContract.METHOD_NOTIFY_EMERGENCY_CONTACT,
-                    null, null);
-        } catch (NullPointerException | IllegalArgumentException ex) {
-            // The content resolver can throw an NPE or IAE; we don't want to crash Telecom if
-            // either of these happen.
-            LogUtil.w(null, "notifyEmergencyContact: provider not ready.");
         }
     }
 }
