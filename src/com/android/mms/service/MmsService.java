@@ -41,6 +41,7 @@ import android.provider.Settings;
 import android.provider.Telephony;
 import android.service.carrier.CarrierMessagingService;
 import android.telephony.SmsManager;
+import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.data.ApnSetting;
@@ -62,7 +63,10 @@ import com.google.android.mms.util.SqliteWrapper;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Callable;
@@ -70,6 +74,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * System service to process MMS API requests
@@ -249,6 +255,24 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 subId = SubscriptionManager.getDefaultSmsSubscriptionId();
             }
 
+            if (!isActiveSubId(subId)) {
+                List<SubscriptionInfo> activeSubList = getActiveSubscriptionsInGroup(subId);
+                if (activeSubList.isEmpty()) {
+                    sendErrorInPendingIntent(downloadedIntent);
+                    return;
+                }
+
+                subId = activeSubList.get(0).getSubscriptionId();
+                int defaultSmsSubId = SubscriptionManager.getDefaultSmsSubscriptionId();
+                // If we have default sms subscription, prefer to use that. Otherwise, use first
+                // subscription
+                for (SubscriptionInfo subInfo : activeSubList) {
+                    if (subInfo.getSubscriptionId() == defaultSmsSubId) {
+                        subId = subInfo.getSubscriptionId();
+                    }
+                }
+            }
+
             final DownloadRequest request = new DownloadRequest(MmsService.this, subId, locationUrl,
                     contentUri, downloadedIntent, callingPkg, configOverrides, MmsService.this);
 
@@ -269,6 +293,48 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             }
 
             addSimRequest(request);
+        }
+
+        private List<SubscriptionInfo> getActiveSubscriptionsInGroup(int subId) {
+            SubscriptionManager subManager =
+                    (SubscriptionManager) getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+
+            if (subManager == null) {
+                return Collections.emptyList();
+            }
+
+            List<SubscriptionInfo> subList = subManager.getAvailableSubscriptionInfoList();
+
+            if (subList == null) {
+                return Collections.emptyList();
+            }
+
+            SubscriptionInfo subscriptionInfo = null;
+            for (SubscriptionInfo subInfo : subList) {
+                if (subInfo.getSubscriptionId() == subId) {
+                    subscriptionInfo = subInfo;
+                    break;
+                }
+            }
+
+            if (subscriptionInfo == null) {
+                return Collections.emptyList();
+            }
+
+            if (subscriptionInfo.getGroupUuid() == null) {
+                return Collections.emptyList();
+            }
+
+            List<SubscriptionInfo> subscriptionInGroupList =
+                    subManager.getSubscriptionsInGroup(subscriptionInfo.getGroupUuid());
+
+            // the list is sorted by isOpportunistic and isOpportunistic == false will have higher
+            // priority
+            return subscriptionInGroupList.stream()
+                    .filter(info ->
+                            info.getSimSlotIndex() != SubscriptionManager.INVALID_SIM_SLOT_INDEX)
+                    .sorted(Comparator.comparing(SubscriptionInfo::isOpportunistic))
+                    .collect(Collectors.toList());
         }
 
         @Override
