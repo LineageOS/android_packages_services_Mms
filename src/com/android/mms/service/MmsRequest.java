@@ -16,6 +16,7 @@
 
 package com.android.mms.service;
 
+import android.annotation.NonNull;
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -27,6 +28,10 @@ import android.os.Bundle;
 import android.service.carrier.CarrierMessagingService;
 import android.service.carrier.CarrierMessagingServiceWrapper.CarrierMessagingCallback;
 import android.telephony.AnomalyReporter;
+import android.telephony.MmsManager;
+import android.telephony.PhoneStateListener;
+import android.telephony.PreciseDataConnectionState;
+import android.telephony.data.ApnSetting;
 import android.telephony.ims.feature.MmTelFeature;
 import android.telephony.ims.ImsMmTelManager;
 import android.telephony.ims.stub.ImsRegistrationImplBase;
@@ -49,6 +54,10 @@ public abstract class MmsRequest {
     private static final int SIGNAL_LEVEL_THRESHOLD = 2;
     // MMS anomaly uuid
     private final UUID mAnomalyUUID = UUID.fromString("e4330975-17be-43b7-87d6-d9f281d33278");
+    public static final String EXTRA_LAST_CONNECTION_FAILURE_CAUSE_CODE
+            = "android.telephony.extra.LAST_CONNECTION_FAILURE_CAUSE_CODE";
+    public static final String EXTRA_HANDLED_BY_CARRIER_APP
+            = "android.telephony.extra.HANDLED_BY_CARRIER_APP";
 
     /**
      * Interface for certain functionalities from MmsService
@@ -96,6 +105,25 @@ public abstract class MmsRequest {
     // Context used to get TelephonyManager.
     protected Context mContext;
     protected long mMessageId;
+    protected int mLastConnectionFailure;
+
+    class MonitorPhoneStateListener extends PhoneStateListener
+            implements PhoneStateListener.PreciseDataConnectionStateChangedListener {
+        @Override
+        public void onPreciseDataConnectionStateChanged(
+                PreciseDataConnectionState connectionState) {
+            if (connectionState == null) {
+                return;
+            }
+            ApnSetting apnSetting = connectionState.getApnSetting();
+            int apnTypes = apnSetting.getApnTypeBitmask();
+            if ((apnTypes & ApnSetting.TYPE_MMS) != 0) {
+                mLastConnectionFailure = connectionState.getLastCauseCode();
+                LogUtil.d("onPreciseDataConnectionStateChanged mLastConnectionFailure: "
+                        + mLastConnectionFailure);
+            }
+        }
+    }
 
     public MmsRequest(RequestManager requestManager, int subId, String creator,
             Bundle configOverrides, Context context, long messageId) {
@@ -165,7 +193,9 @@ public abstract class MmsRequest {
             // Try multiple times of MMS HTTP request, depending on the error.
             for (int i = 0; i < RETRY_TIMES; i++) {
                 httpStatusCode = 0; // Clear for retry.
+                PhoneStateListener connectionStateListener = new MonitorPhoneStateListener();
                 try {
+                    listenToDataConnectionState(connectionStateListener);
                     networkManager.acquireNetwork(requestId);
                     final String apnName = networkManager.getApnName();
                     LogUtil.d(requestId, "APN name is " + apnName);
@@ -210,6 +240,8 @@ public abstract class MmsRequest {
                     LogUtil.e(requestId, "Unexpected failure", e);
                     result = SmsManager.MMS_ERROR_UNSPECIFIED;
                     break;
+                } finally {
+                    stopListeningToDataConnectionState(connectionStateListener);
                 }
                 try {
                     Thread.sleep(retryDelaySecs * 1000, 0/*nano*/);
@@ -217,7 +249,19 @@ public abstract class MmsRequest {
                 retryDelaySecs <<= 1;
             }
         }
-        processResult(context, result, response, httpStatusCode);
+        processResult(context, result, response, httpStatusCode, /* handledByCarrierApp= */ false);
+    }
+
+    private void listenToDataConnectionState(PhoneStateListener connectionStateListener) {
+        final TelephonyManager telephonyManager = mContext.getSystemService(
+                TelephonyManager.class).createForSubscriptionId(mSubId);
+        telephonyManager.registerPhoneStateListener(r -> r.run(), connectionStateListener);
+    }
+
+    private void stopListeningToDataConnectionState(PhoneStateListener connectionStateListener) {
+        final TelephonyManager telephonyManager = mContext.getSystemService(
+                TelephonyManager.class).createForSubscriptionId(mSubId);
+        telephonyManager.unregisterPhoneStateListener(connectionStateListener);
     }
 
     /**
@@ -227,8 +271,11 @@ public abstract class MmsRequest {
      * @param result The result code of execution
      * @param response The response body
      * @param httpStatusCode The optional http status code in case of http failure
+     * @param handledByCarrierApp True if the sending/downloading was handled by a carrier app
+     *                            rather than MmsService.
      */
-    public void processResult(Context context, int result, byte[] response, int httpStatusCode) {
+    public void processResult(Context context, int result, byte[] response, int httpStatusCode,
+            boolean handledByCarrierApp) {
         final Uri messageUri = persistIfRequired(context, result, response);
 
         final String requestId = this.getRequestId();
@@ -237,7 +284,9 @@ public abstract class MmsRequest {
         // "httpStatusCode: xxx" is now reported for an http failure only.
         LogUtil.i(requestId, "processResult: "
                 + (result == Activity.RESULT_OK ? "success" : "failure(" + result + ")")
-                + (httpStatusCode != 0 ? ", httpStatusCode: " + httpStatusCode : ""));
+                + (httpStatusCode != 0 ? ", httpStatusCode: " + httpStatusCode : "")
+                + " handledByCarrierApp: " + handledByCarrierApp
+                + " mLastConnectionFailure: " + mLastConnectionFailure);
 
         // Return MMS HTTP request result via PendingIntent
         final PendingIntent pendingIntent = getPendingIntent();
@@ -254,6 +303,9 @@ public abstract class MmsRequest {
             if (result == SmsManager.MMS_ERROR_HTTP_FAILURE && httpStatusCode != 0) {
                 fillIn.putExtra(SmsManager.EXTRA_MMS_HTTP_STATUS, httpStatusCode);
             }
+            fillIn.putExtra(EXTRA_LAST_CONNECTION_FAILURE_CAUSE_CODE,
+                    mLastConnectionFailure);
+            fillIn.putExtra(EXTRA_HANDLED_BY_CARRIER_APP, handledByCarrierApp);
             try {
                 if (!succeeded) {
                     result = SmsManager.MMS_ERROR_IO_ERROR;
