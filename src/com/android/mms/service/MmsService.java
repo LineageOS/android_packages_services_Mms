@@ -39,6 +39,7 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.provider.Telephony;
+import android.security.NetworkSecurityPolicy;
 import android.service.carrier.CarrierMessagingService;
 import android.telephony.SmsManager;
 import android.telephony.SubscriptionInfo;
@@ -186,8 +187,9 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
     private IMms.Stub mStub = new IMms.Stub() {
         @Override
         public void sendMessage(int subId, String callingPkg, Uri contentUri,
-                String locationUrl, Bundle configOverrides, PendingIntent sentIntent) {
-            LogUtil.d("sendMessage");
+                String locationUrl, Bundle configOverrides, PendingIntent sentIntent,
+                long messageId) {
+            LogUtil.d("sendMessage messageId: " + messageId);
             enforceSystemUid();
 
             // Make sure the subId is correct
@@ -207,7 +209,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             }
 
             final SendRequest request = new SendRequest(MmsService.this, subId, contentUri,
-                    locationUrl, sentIntent, callingPkg, configOverrides, MmsService.this);
+                    locationUrl, sentIntent, callingPkg, configOverrides, MmsService.this,
+                    messageId);
 
             final String carrierMessagingServicePackage =
                     getCarrierMessagingServicePackageIfExists(subId);
@@ -237,11 +240,12 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         @Override
         public void downloadMessage(int subId, String callingPkg, String locationUrl,
                 Uri contentUri, Bundle configOverrides,
-                PendingIntent downloadedIntent) {
+                PendingIntent downloadedIntent, long messageId) {
             // If the subId is no longer active it could be caused by an MVNO using multiple
             // subIds, so we should try to download anyway.
             // TODO: Fail fast when downloading will fail (i.e. SIM swapped)
-            LogUtil.d("downloadMessage: " + MmsHttpClient.redactUrlForNonVerbose(locationUrl));
+            LogUtil.d("downloadMessage: " + MmsHttpClient.redactUrlForNonVerbose(locationUrl) +
+                    ", messageId: " + messageId);
 
             enforceSystemUid();
 
@@ -274,7 +278,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             }
 
             final DownloadRequest request = new DownloadRequest(MmsService.this, subId, locationUrl,
-                    contentUri, downloadedIntent, callingPkg, configOverrides, MmsService.this);
+                    contentUri, downloadedIntent, callingPkg, configOverrides, MmsService.this,
+                    messageId);
 
             final String carrierMessagingServicePackage =
                     getCarrierMessagingServicePackageIfExists(subId);
@@ -612,6 +617,9 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         LogUtil.d("onCreate");
         // Load mms_config
         MmsConfigManager.getInstance().init(this);
+
+        NetworkSecurityPolicy.getInstance().setCleartextTrafficPermitted(true);
+
         // Initialize running request state
         for (int i = 0; i < mRunningRequestExecutors.length; i++) {
             mRunningRequestExecutors[i] = Executors.newFixedThreadPool(THREAD_POOL_SIZE);

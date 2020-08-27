@@ -56,13 +56,15 @@ public final class MmsServiceRoboTest {
     public void testSendMessage_DoesNotThrowIfSystemUid() throws RemoteException {
         ShadowBinder.setCallingUid(Process.SYSTEM_UID);
         binder.sendMessage(/* subId= */ 0, "callingPkg", Uri.parse("contentUri"),
-                "locationUrl", /* configOverrides= */ null, /* sentIntent= */ null);
+                "locationUrl", /* configOverrides= */ null, /* sentIntent= */ null,
+                /* messageId= */ 0L);
     }
 
     @Test
     public void testSendMessageThrows_IfNotSystemUid() {
         assertThrows(SecurityException.class,
                 () -> binder.sendMessage(/* subId= */ 0, "callingPkg", Uri.parse("contentUri"),
-                        "locationUrl", /* configOverrides= */ null, /* sentIntent= */ null));
+                        "locationUrl", /* configOverrides= */ null, /* sentIntent= */ null,
+                        /* messageId= */ 0L));
     }
 }
