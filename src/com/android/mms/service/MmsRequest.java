@@ -164,6 +164,7 @@ public abstract class MmsRequest {
             long retryDelaySecs = 2;
             // Try multiple times of MMS HTTP request, depending on the error.
             for (int i = 0; i < RETRY_TIMES; i++) {
+                httpStatusCode = 0; // Clear for retry.
                 try {
                     networkManager.acquireNetwork(requestId);
                     final String apnName = networkManager.getApnName();
@@ -231,10 +232,10 @@ public abstract class MmsRequest {
         final String requestId = this.getRequestId();
         // As noted in the @param comment above, the httpStatusCode is only set when there's
         // an http failure. On success, such as an http code of 200, the value here will be 0.
-        // It's disconcerting in the log to see httpStatusCode: 0 when the mms succeeded. That
-        // is why an httpStatusCode of zero is now reported in the log as "success".
-        LogUtil.i(requestId, "processResult: " + result + ", httpStatusCode: "
-                + (httpStatusCode != 0 ? httpStatusCode : "success (0)"));
+        // "httpStatusCode: xxx" is now reported for an http failure only.
+        LogUtil.i(requestId, "processResult: "
+                + (result == Activity.RESULT_OK ? "success" : "failure(" + result + ")")
+                + (httpStatusCode != 0 ? ", httpStatusCode: " + httpStatusCode : ""));
 
         // Return MMS HTTP request result via PendingIntent
         final PendingIntent pendingIntent = getPendingIntent();
