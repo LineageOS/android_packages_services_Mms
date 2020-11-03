@@ -189,7 +189,9 @@ public abstract class MmsRequest {
                         // Success
                         break;
                     } finally {
-                        networkManager.releaseNetwork(requestId, this instanceof DownloadRequest);
+                        // Release the MMS network immediately except successful DownloadRequest.
+                        networkManager.releaseNetwork(requestId,
+                                this instanceof DownloadRequest && result == Activity.RESULT_OK);
                     }
                 } catch (ApnException e) {
                     LogUtil.e(requestId, "APN failure", e);
