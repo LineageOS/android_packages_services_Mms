@@ -407,7 +407,8 @@ public class SendRequest extends MmsRequest {
                 CarrierSendCompleteCallback carrierSendCompleteCallback) {
             mCarrierSendCompleteCallback = carrierSendCompleteCallback;
             if (mCarrierMessagingServiceWrapper.bindToCarrierMessagingService(
-                    context, carrierMessagingServicePackage, () -> onServiceReady())) {
+                    context, carrierMessagingServicePackage, Runnable::run,
+                    () -> onServiceReady())) {
                 LogUtil.v("bindService() for carrier messaging service succeeded. messageId: "
                         + mMessageId);
             } else {
@@ -426,7 +427,8 @@ public class SendRequest extends MmsRequest {
                     locationUri = Uri.parse(mLocationUrl);
                 }
                 mCarrierMessagingServiceWrapper.sendMms(
-                        mPduUri, mSubId, locationUri, mCarrierSendCompleteCallback);
+                        mPduUri, mSubId, locationUri, Runnable::run,
+                        mCarrierSendCompleteCallback);
             } catch (RuntimeException e) {
                 LogUtil.e("Exception sending MMS using the carrier messaging service. messageId: "
                         + mMessageId + e, e);
