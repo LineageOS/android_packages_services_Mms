@@ -393,14 +393,21 @@ public class SendRequest extends MmsRequest {
     /**
      * Sends the MMS through through the carrier app.
      */
-    private final class CarrierSendManager extends CarrierMessagingServiceWrapper {
+    private final class CarrierSendManager {
         // Initialized in sendMms
         private volatile CarrierSendCompleteCallback mCarrierSendCompleteCallback;
+        private final CarrierMessagingServiceWrapper mCarrierMessagingServiceWrapper =
+                new CarrierMessagingServiceWrapper();
+
+        void disposeConnection(Context context) {
+            mCarrierMessagingServiceWrapper.disposeConnection(context);
+        }
 
         void sendMms(Context context, String carrierMessagingServicePackage,
                 CarrierSendCompleteCallback carrierSendCompleteCallback) {
             mCarrierSendCompleteCallback = carrierSendCompleteCallback;
-            if (bindToCarrierMessagingService(context, carrierMessagingServicePackage)) {
+            if (mCarrierMessagingServiceWrapper.bindToCarrierMessagingService(
+                    context, carrierMessagingServicePackage, () -> onServiceReady())) {
                 LogUtil.v("bindService() for carrier messaging service succeeded. messageId: "
                         + mMessageId);
             } else {
@@ -412,14 +419,14 @@ public class SendRequest extends MmsRequest {
             }
         }
 
-        @Override
-        public void onServiceReady() {
+        private void onServiceReady() {
             try {
                 Uri locationUri = null;
                 if (mLocationUrl != null) {
                     locationUri = Uri.parse(mLocationUrl);
                 }
-                sendMms(mPduUri, mSubId, locationUri, mCarrierSendCompleteCallback);
+                mCarrierMessagingServiceWrapper.sendMms(
+                        mPduUri, mSubId, locationUri, mCarrierSendCompleteCallback);
             } catch (RuntimeException e) {
                 LogUtil.e("Exception sending MMS using the carrier messaging service. messageId: "
                         + mMessageId + e, e);
