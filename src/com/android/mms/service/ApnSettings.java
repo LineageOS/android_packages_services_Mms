@@ -102,7 +102,7 @@ public class ApnSettings {
         }
 
         try (Cursor cursor = context.getContentResolver().query(
-                    Uri.withAppendedPath(Telephony.Carriers.CONTENT_URI, "/subId/" + subId),
+                    Uri.withAppendedPath(Telephony.Carriers.SIM_APN_URI, String.valueOf(subId)),
                     APN_PROJECTION,
                     selection,
                     selectionArgs,
