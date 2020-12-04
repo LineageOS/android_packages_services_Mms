@@ -457,7 +457,7 @@ public abstract class MmsRequest {
         }
 
         @Override
-        public void onFilterComplete(int result) {
+        public void onReceiveSmsComplete(int result) {
             LogUtil.e("Unexpected onFilterComplete call for messageId " + mMessageId
                     + " with result: " + result);
         }

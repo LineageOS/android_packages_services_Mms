@@ -291,7 +291,8 @@ public class DownloadRequest extends MmsRequest {
                 CarrierDownloadCompleteCallback carrierDownloadCallback) {
             mCarrierDownloadCallback = carrierDownloadCallback;
             if (mCarrierMessagingServiceWrapper.bindToCarrierMessagingService(
-                    context, carrierMessagingServicePackage, ()->onServiceReady())) {
+                    context, carrierMessagingServicePackage, Runnable::run,
+                    ()->onServiceReady())) {
                 LogUtil.v("bindService() for carrier messaging service succeeded. messageId: "
                         + mMessageId);
             } else {
@@ -305,7 +306,8 @@ public class DownloadRequest extends MmsRequest {
         private void onServiceReady() {
             try {
                 mCarrierMessagingServiceWrapper.downloadMms(
-                        mContentUri, mSubId, Uri.parse(mLocationUrl), mCarrierDownloadCallback);
+                        mContentUri, mSubId, Uri.parse(mLocationUrl), Runnable::run,
+                        mCarrierDownloadCallback);
             } catch (RuntimeException e) {
                 LogUtil.e("Exception downloading MMS for messageId " + mMessageId
                         + " using the carrier messaging service: " + e, e);
