@@ -351,8 +351,8 @@ public abstract class MmsRequest {
                 == CarrierMessagingService.SEND_STATUS_RETRY_ON_CARRIER_NETWORK
                 || carrierMessagingAppResult
                         == CarrierMessagingService.DOWNLOAD_STATUS_RETRY_ON_CARRIER_NETWORK) {
-            LogUtil.d(this.toString(), "Sending/downloading MMS by IP failed. messageId: "
-                    + mMessageId);
+            LogUtil.d(this.toString(), "Sending/downloading MMS by IP failed. "
+                    + MmsService.formatCrossStackMessageId(mMessageId));
             mRequestManager.addSimRequest(MmsRequest.this);
             return true;
         } else {
@@ -377,9 +377,8 @@ public abstract class MmsRequest {
     @Override
     public String toString() {
         return getClass().getSimpleName() + '@' + Integer.toHexString(hashCode())
-                + " messageId: " + mMessageId;
+                + " " + MmsService.formatCrossStackMessageId(mMessageId);
     }
-
 
     protected String getRequestId() {
         return this.toString();
@@ -446,19 +445,22 @@ public abstract class MmsRequest {
     protected abstract class CarrierMmsActionCallback implements CarrierMessagingCallback {
         @Override
         public void onSendSmsComplete(int result, int messageRef) {
-            LogUtil.e("Unexpected onSendSmsComplete call for messageId " + mMessageId
+            LogUtil.e("Unexpected onSendSmsComplete call for "
+                    + MmsService.formatCrossStackMessageId(mMessageId)
                     + " with result: " + result);
         }
 
         @Override
         public void onSendMultipartSmsComplete(int result, int[] messageRefs) {
-            LogUtil.e("Unexpected onSendMultipartSmsComplete call for messageId " + mMessageId
+            LogUtil.e("Unexpected onSendMultipartSmsComplete call for "
+                    + MmsService.formatCrossStackMessageId(mMessageId)
                     + " with result: " + result);
         }
 
         @Override
         public void onReceiveSmsComplete(int result) {
-            LogUtil.e("Unexpected onFilterComplete call for messageId " + mMessageId
+            LogUtil.e("Unexpected onFilterComplete call for "
+                    + MmsService.formatCrossStackMessageId(mMessageId)
                     + " with result: " + result);
         }
     }

@@ -189,7 +189,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         public void sendMessage(int subId, String callingPkg, Uri contentUri,
                 String locationUrl, Bundle configOverrides, PendingIntent sentIntent,
                 long messageId) {
-            LogUtil.d("sendMessage messageId: " + messageId);
+            LogUtil.d("sendMessage " + formatCrossStackMessageId(messageId));
             enforceSystemUid();
 
             // Make sure the subId is correct
@@ -216,7 +216,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                     getCarrierMessagingServicePackageIfExists(subId);
 
             if (carrierMessagingServicePackage != null) {
-                LogUtil.d(request.toString(), "sending message by carrier app");
+                LogUtil.d(request.toString(), "sending message by carrier app "
+                        + formatCrossStackMessageId(messageId));
                 request.trySendingByCarrierApp(MmsService.this, carrierMessagingServicePackage);
                 return;
             }
@@ -245,7 +246,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             // subIds, so we should try to download anyway.
             // TODO: Fail fast when downloading will fail (i.e. SIM swapped)
             LogUtil.d("downloadMessage: " + MmsHttpClient.redactUrlForNonVerbose(locationUrl) +
-                    ", messageId: " + messageId);
+                    ", " + formatCrossStackMessageId(messageId));
 
             enforceSystemUid();
 
@@ -285,7 +286,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                     getCarrierMessagingServicePackageIfExists(subId);
 
             if (carrierMessagingServicePackage != null) {
-                LogUtil.d(request.toString(), "downloading message by carrier app");
+                LogUtil.d(request.toString(), "downloading message by carrier app "
+                        + formatCrossStackMessageId(messageId));
                 request.tryDownloadingByCarrierApp(MmsService.this, carrierMessagingServicePackage);
                 return;
             }
@@ -1049,5 +1051,9 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             pendingResult.cancel(true);
         }
         return false;
+    }
+
+    static String formatCrossStackMessageId(long id) {
+        return "{x-message-id:" + id + "}";
     }
 }
