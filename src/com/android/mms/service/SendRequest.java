@@ -470,7 +470,7 @@ public class SendRequest extends MmsRequest {
 
             if (!maybeFallbackToRegularDelivery(result)) {
                 processResult(mContext, toSmsManagerResult(result), sendConfPdu,
-                        0/* httpStatusCode */);
+                        0/* httpStatusCode */, /* handledByCarrierApp= */ true);
             }
         }
 
