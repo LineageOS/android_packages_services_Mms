@@ -408,7 +408,7 @@ public class SendRequest extends MmsRequest {
                 new CarrierMessagingServiceWrapper();
 
         void disposeConnection(Context context) {
-            mCarrierMessagingServiceWrapper.disposeConnection(context);
+            mCarrierMessagingServiceWrapper.disconnect();
         }
 
         void sendMms(Context context, String carrierMessagingServicePackage,
@@ -470,7 +470,7 @@ public class SendRequest extends MmsRequest {
 
             if (!maybeFallbackToRegularDelivery(result)) {
                 processResult(mContext, toSmsManagerResult(result), sendConfPdu,
-                        0/* httpStatusCode */);
+                        0/* httpStatusCode */, /* handledByCarrierApp= */ true);
             }
         }
 
