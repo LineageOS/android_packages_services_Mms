@@ -408,7 +408,7 @@ public class SendRequest extends MmsRequest {
                 new CarrierMessagingServiceWrapper();
 
         void disposeConnection(Context context) {
-            mCarrierMessagingServiceWrapper.disposeConnection(context);
+            mCarrierMessagingServiceWrapper.disconnect();
         }
 
         void sendMms(Context context, String carrierMessagingServicePackage,

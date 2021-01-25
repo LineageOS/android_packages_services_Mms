@@ -287,7 +287,7 @@ public class DownloadRequest extends MmsRequest {
                 new CarrierMessagingServiceWrapper();
 
         void disposeConnection(Context context) {
-            mCarrierMessagingServiceWrapper.disposeConnection(context);
+            mCarrierMessagingServiceWrapper.disconnect();
         }
 
         void downloadMms(Context context, String carrierMessagingServicePackage,
