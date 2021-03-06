@@ -16,7 +16,6 @@
 
 package com.android.mms.service;
 
-import android.annotation.NonNull;
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -28,9 +27,9 @@ import android.os.Bundle;
 import android.service.carrier.CarrierMessagingService;
 import android.service.carrier.CarrierMessagingServiceWrapper.CarrierMessagingCallback;
 import android.telephony.AnomalyReporter;
-import android.telephony.MmsManager;
 import android.telephony.PhoneStateListener;
 import android.telephony.PreciseDataConnectionState;
+import android.telephony.TelephonyCallback;
 import android.telephony.data.ApnSetting;
 import android.telephony.ims.feature.MmTelFeature;
 import android.telephony.ims.ImsMmTelManager;
@@ -107,8 +106,8 @@ public abstract class MmsRequest {
     protected long mMessageId;
     protected int mLastConnectionFailure;
 
-    class MonitorPhoneStateListener extends PhoneStateListener
-            implements PhoneStateListener.PreciseDataConnectionStateChangedListener {
+    class MonitorTelephonyCallback extends TelephonyCallback implements
+            TelephonyCallback.PreciseDataConnectionStateListener {
         @Override
         public void onPreciseDataConnectionStateChanged(
                 PreciseDataConnectionState connectionState) {
@@ -193,9 +192,9 @@ public abstract class MmsRequest {
             // Try multiple times of MMS HTTP request, depending on the error.
             for (int i = 0; i < RETRY_TIMES; i++) {
                 httpStatusCode = 0; // Clear for retry.
-                PhoneStateListener connectionStateListener = new MonitorPhoneStateListener();
+                MonitorTelephonyCallback connectionStateCallback = new MonitorTelephonyCallback();
                 try {
-                    listenToDataConnectionState(connectionStateListener);
+                    listenToDataConnectionState(connectionStateCallback);
                     networkManager.acquireNetwork(requestId);
                     final String apnName = networkManager.getApnName();
                     LogUtil.d(requestId, "APN name is " + apnName);
@@ -241,7 +240,7 @@ public abstract class MmsRequest {
                     result = SmsManager.MMS_ERROR_UNSPECIFIED;
                     break;
                 } finally {
-                    stopListeningToDataConnectionState(connectionStateListener);
+                    stopListeningToDataConnectionState(connectionStateCallback);
                 }
                 try {
                     Thread.sleep(retryDelaySecs * 1000, 0/*nano*/);
@@ -252,16 +251,17 @@ public abstract class MmsRequest {
         processResult(context, result, response, httpStatusCode, /* handledByCarrierApp= */ false);
     }
 
-    private void listenToDataConnectionState(PhoneStateListener connectionStateListener) {
+    private void listenToDataConnectionState(MonitorTelephonyCallback connectionStateCallback) {
         final TelephonyManager telephonyManager = mContext.getSystemService(
                 TelephonyManager.class).createForSubscriptionId(mSubId);
-        telephonyManager.registerPhoneStateListener(r -> r.run(), connectionStateListener);
+        telephonyManager.registerTelephonyCallback(r -> r.run(), connectionStateCallback);
     }
 
-    private void stopListeningToDataConnectionState(PhoneStateListener connectionStateListener) {
+    private void stopListeningToDataConnectionState(
+            MonitorTelephonyCallback connectionStateCallback) {
         final TelephonyManager telephonyManager = mContext.getSystemService(
                 TelephonyManager.class).createForSubscriptionId(mSubId);
-        telephonyManager.unregisterPhoneStateListener(connectionStateListener);
+        telephonyManager.unregisterTelephonyCallback(connectionStateCallback);
     }
 
     /**
