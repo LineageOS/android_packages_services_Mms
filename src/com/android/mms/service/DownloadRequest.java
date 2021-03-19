@@ -344,7 +344,7 @@ public class DownloadRequest extends MmsRequest {
 
             if (!maybeFallbackToRegularDelivery(result)) {
                 processResult(mContext, toSmsManagerResult(result), null/* response */,
-                        0/* httpStatusCode */);
+                        0/* httpStatusCode */, /* handledByCarrierApp= */ true);
             }
         }
     }
