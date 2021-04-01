@@ -47,6 +47,7 @@ import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.data.ApnSetting;
 import android.text.TextUtils;
+import android.util.EventLog;
 import android.util.SparseArray;
 
 import com.android.internal.telephony.IMms;
@@ -427,6 +428,10 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         public boolean archiveStoredConversation(String callingPkg, long conversationId,
                 boolean archived) throws RemoteException {
             LogUtil.d("archiveStoredConversation " + conversationId + " " + archived);
+            if (Binder.getCallingUid() != Process.SYSTEM_UID) {
+                EventLog.writeEvent(0x534e4554, "180419673", Binder.getCallingUid(), "");
+            }
+            enforceSystemUid();
             if (conversationId == -1) {
                 LogUtil.e("archiveStoredConversation: invalid thread id");
                 return false;
