@@ -1009,6 +1009,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         } catch (Exception e) {
             // Typically a timeout occurred - cancel task
             pendingResult.cancel(true);
+            LogUtil.e("Exception during PDU read", e);
         }
         return 0;
     }
@@ -1054,6 +1055,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         } catch (Exception e) {
             // Typically a timeout occurred - cancel task
             pendingResult.cancel(true);
+            LogUtil.e("Exception during PDU write", e);
         }
         return false;
     }
