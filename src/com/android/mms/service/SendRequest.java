@@ -96,7 +96,7 @@ public class SendRequest extends MmsRequest {
         final String requestId = getRequestId();
         try {
             if (mPduData == null) {
-                LogUtil.w(requestId, "Empty PDU raw data. "
+                LogUtil.d(requestId, "Empty PDU raw data. "
                         + MmsService.formatCrossStackMessageId(mMessageId));
                 return null;
             }
@@ -104,8 +104,8 @@ public class SendRequest extends MmsRequest {
                     mMmsConfig.getBoolean(SmsManager.MMS_CONFIG_SUPPORT_MMS_CONTENT_DISPOSITION);
             return new PduParser(mPduData, supportContentDisposition).parse();
         } catch (final Exception e) {
-            LogUtil.w(requestId, "Failed to parse PDU raw data. "
-                    + MmsService.formatCrossStackMessageId(mMessageId));
+            LogUtil.e(requestId, "Failed to parse PDU raw data. "
+                    + MmsService.formatCrossStackMessageId(mMessageId), e);
         }
         return null;
     }
