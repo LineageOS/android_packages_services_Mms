@@ -490,6 +490,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
          * Calls the pending intent with <code>MMS_ERROR_NO_DATA_NETWORK</code>.
          */
         private void sendErrorInPendingIntent(@Nullable PendingIntent intent) {
+            LogUtil.d("sendErrorInPendingIntent - no data network");
             if (intent != null) {
                 try {
                     intent.send(SmsManager.MMS_ERROR_NO_DATA_NETWORK);
@@ -538,6 +539,9 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                     movePendingSimRequestsToRunningSynchronized();
                 }
             } else {
+                LogUtil.d("Add request to running queue."
+                        + " Request subId=" + request.getSubId() + ","
+                        + " current subId=" + mCurrentSubId);
                 addToRunningRequestQueueSynchronized(request);
             }
         }
@@ -578,6 +582,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 } finally {
                     synchronized (MmsService.this) {
                         mRunningRequestCount--;
+                        LogUtil.d("addToRunningRequestQueueSynchronized mRunningRequestCount="
+                                + mRunningRequestCount);
                         if (mRunningRequestCount <= 0) {
                             movePendingSimRequestsToRunningSynchronized();
                         }
@@ -588,7 +594,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
     }
 
     private void movePendingSimRequestsToRunningSynchronized() {
-        LogUtil.d("Schedule requests pending on SIM");
+        LogUtil.d("Move pending requests to running queue mPendingSimRequestQueue.size="
+                + mPendingSimRequestQueue.size());
         mCurrentSubId = SubscriptionManager.INVALID_SUBSCRIPTION_ID;
         while (mPendingSimRequestQueue.size() > 0) {
             final MmsRequest request = mPendingSimRequestQueue.peek();
@@ -597,9 +604,15 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                         || mCurrentSubId == request.getSubId()) {
                     // First or subsequent requests with same SIM ID
                     mPendingSimRequestQueue.remove();
+                    LogUtil.d("Move pending request to running queue."
+                            + " Request subId=" + request.getSubId() + ","
+                            + " current subId=" + mCurrentSubId);
                     addToRunningRequestQueueSynchronized(request);
                 } else {
                     // Stop if we see a different SIM ID
+                    LogUtil.d("Pending request not moved to running queue, different subId."
+                            + " Request subId=" + request.getSubId() + ","
+                            + " current subId=" + mCurrentSubId);
                     break;
                 }
             } else {
