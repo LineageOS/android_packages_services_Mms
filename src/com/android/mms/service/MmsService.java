@@ -214,7 +214,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             // Make sure the subId is correct
             if (!SubscriptionManager.isValidSubscriptionId(subId)) {
                 LogUtil.e("Invalid subId " + subId);
-                sendErrorInPendingIntent(sentIntent, SmsManager.MMS_ERROR_NO_DATA_NETWORK);
+                sendErrorInPendingIntent(sentIntent, SmsManager.MMS_ERROR_INVALID_SUBSCRIPTION_ID);
                 return;
             }
             if (subId == SubscriptionManager.DEFAULT_SUBSCRIPTION_ID) {
@@ -223,7 +223,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
             // Make sure the subId is active
             if (!isActiveSubId(subId)) {
-                sendErrorInPendingIntent(sentIntent, SmsManager.MMS_ERROR_NO_DATA_NETWORK);
+                sendErrorInPendingIntent(sentIntent, SmsManager.MMS_ERROR_INACTIVE_SUBSCRIPTION);
                 return;
             }
 
@@ -291,7 +291,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             // Make sure the subId is correct
             if (!SubscriptionManager.isValidSubscriptionId(subId)) {
                 LogUtil.e("Invalid subId " + subId);
-                sendErrorInPendingIntent(downloadedIntent, SmsManager.MMS_ERROR_NO_DATA_NETWORK);
+                sendErrorInPendingIntent(downloadedIntent,
+                        SmsManager.MMS_ERROR_INVALID_SUBSCRIPTION_ID);
                 return;
             }
             if (subId == SubscriptionManager.DEFAULT_SUBSCRIPTION_ID) {
@@ -301,8 +302,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             if (!isActiveSubId(subId)) {
                 List<SubscriptionInfo> activeSubList = getActiveSubscriptionsInGroup(subId);
                 if (activeSubList.isEmpty()) {
-                    sendErrorInPendingIntent(
-                            downloadedIntent, SmsManager.MMS_ERROR_NO_DATA_NETWORK);
+                    sendErrorInPendingIntent(downloadedIntent,
+                            SmsManager.MMS_ERROR_INACTIVE_SUBSCRIPTION);
                     return;
                 }
 
@@ -356,7 +357,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             // Make sure subId has MMS data
             if (!getTelephonyManager(subId).isDataEnabledForApn(ApnSetting.TYPE_MMS)) {
                 sendSettingsIntentForFailedMms(/*isIncoming=*/ true, subId);
-                sendErrorInPendingIntent(downloadedIntent, SmsManager.MMS_ERROR_NO_DATA_NETWORK);
+                sendErrorInPendingIntent(downloadedIntent, SmsManager.MMS_ERROR_DATA_DISABLED);
                 return;
             }
 
