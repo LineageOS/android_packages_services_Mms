@@ -32,8 +32,8 @@ import android.provider.DeviceConfig;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.PhoneConstants;
-
 import com.android.mms.service.exception.MmsNetworkException;
 
 /**
@@ -90,6 +90,8 @@ public class MmsNetworkManager {
     // If ACTION_SIM_CARD_STATE_CHANGED intent receiver is registered
     private boolean mReceiverRegistered;
 
+    private final Dependencies mDeps;
+
     /**
      * This receiver listens to ACTION_SIM_CARD_STATE_CHANGED after starting a new NetworkRequest.
      * If ACTION_SIM_CARD_STATE_CHANGED with SIM_STATE_ABSENT for a SIM card corresponding to the
@@ -142,22 +144,12 @@ public class MmsNetworkManager {
      */
     private class NetworkRequestCallback extends ConnectivityManager.NetworkCallback {
         @Override
-        public void onAvailable(Network network) {
-            super.onAvailable(network);
-            LogUtil.i("NetworkCallbackListener.onAvailable: network=" + network);
-            synchronized (MmsNetworkManager.this) {
-                mNetwork = network;
-                MmsNetworkManager.this.notifyAll();
-            }
-        }
-
-        @Override
         public void onLost(Network network) {
             super.onLost(network);
             LogUtil.w("NetworkCallbackListener.onLost: network=" + network);
             synchronized (MmsNetworkManager.this) {
-                releaseRequestLocked(this);
-                MmsNetworkManager.this.notifyAll();
+                // Wait for other available network. Not notify.
+                if (network.equals(mNetwork)) mNetwork = null;
             }
         }
 
@@ -170,10 +162,61 @@ public class MmsNetworkManager {
                 MmsNetworkManager.this.notifyAll();
             }
         }
+
+        @Override
+        public void onCapabilitiesChanged(Network network, NetworkCapabilities nc) {
+            // onAvailable will always immediately be followed by a onCapabilitiesChanged. Check
+            // network status here is enough.
+            super.onCapabilitiesChanged(network, nc);
+            LogUtil.w("NetworkCallbackListener.onCapabilitiesChanged: network="
+                    + network + ", nc=" + nc);
+            synchronized (MmsNetworkManager.this) {
+                final boolean isAvailable =
+                        nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED);
+                if (network.equals(mNetwork) && !isAvailable) {
+                    // Current network becomes suspended.
+                    mNetwork = null;
+                    // Not notify. Either wait for other available network or current network to
+                    // become available again.
+                    return;
+                }
+
+                // New available network
+                if (mNetwork == null && isAvailable) {
+                    mNetwork = network;
+                    MmsNetworkManager.this.notifyAll();
+                }
+            }
+        }
     }
 
-    public MmsNetworkManager(Context context, int subId) {
+    /**
+     * Dependencies of MmsNetworkManager, for injection in tests.
+     */
+    @VisibleForTesting
+    public static class Dependencies {
+        /** Get phone Id from the given subId */
+        public int getPhoneId(int subId) {
+            return SubscriptionManager.getPhoneId(subId);
+        }
+
+        // Timeout used to call ConnectivityManager.requestNetwork. Given that the telephony layer
+        // will retry on failures, this timeout should be high enough.
+        public int getNetworkRequestTimeoutMillis() {
+            return DeviceConfig.getInt(
+                    DeviceConfig.NAMESPACE_TELEPHONY, MMS_SERVICE_NETWORK_REQUEST_TIMEOUT_MILLIS,
+                    DEFAULT_MMS_SERVICE_NETWORK_REQUEST_TIMEOUT_MILLIS);
+        }
+
+        public int getAdditionalNetworkAcquireTimeoutMillis() {
+            return ADDITIONAL_NETWORK_ACQUIRE_TIMEOUT_MILLIS;
+        }
+    }
+
+    @VisibleForTesting
+    protected MmsNetworkManager(Context context, int subId, Dependencies dependencies) {
         mContext = context;
+        mDeps = dependencies;
         mNetworkCallback = null;
         mNetwork = null;
         mMmsRequestCount = 0;
@@ -200,6 +243,10 @@ public class MmsNetworkManager {
         };
     }
 
+    public MmsNetworkManager(Context context, int subId) {
+        this(context, subId, new Dependencies());
+    }
+
     /**
      * Acquire the MMS network
      *
@@ -207,7 +254,7 @@ public class MmsNetworkManager {
      * @throws com.android.mms.service.exception.MmsNetworkException if we fail to acquire it
      */
     public void acquireNetwork(final String requestId) throws MmsNetworkException {
-        int networkRequestTimeoutMillis = getNetworkRequestTimeoutMillis();
+        int networkRequestTimeoutMillis = mDeps.getNetworkRequestTimeoutMillis();
 
         synchronized (this) {
             // Since we are acquiring the network, remove the network release task if exists.
@@ -220,7 +267,7 @@ public class MmsNetworkManager {
             }
             // Not available, so start a new request if not done yet
             if (mNetworkCallback == null) {
-                mPhoneId = SubscriptionManager.getPhoneId(mSubId);
+                mPhoneId = mDeps.getPhoneId(mSubId);
                 if (mPhoneId == SubscriptionManager.INVALID_PHONE_INDEX
                         || mPhoneId == SubscriptionManager.DEFAULT_PHONE_INDEX) {
                     throw new MmsNetworkException("Invalid Phone Id: " + mPhoneId);
@@ -236,7 +283,8 @@ public class MmsNetworkManager {
                 mReceiverRegistered = true;
             }
             try {
-                this.wait(networkRequestTimeoutMillis + ADDITIONAL_NETWORK_ACQUIRE_TIMEOUT_MILLIS);
+                this.wait(networkRequestTimeoutMillis
+                        + mDeps.getAdditionalNetworkAcquireTimeoutMillis());
             } catch (InterruptedException e) {
                 LogUtil.w(requestId, "MmsNetworkManager: acquire network wait interrupted");
             }
@@ -268,15 +316,6 @@ public class MmsNetworkManager {
             throw new MmsNetworkException("Acquiring network failed");
         }
     }
-
-    // Timeout used to call ConnectivityManager.requestNetwork
-    // Given that the telephony layer will retry on failures, this timeout should be high enough.
-    private int getNetworkRequestTimeoutMillis() {
-        return DeviceConfig.getInt(
-                DeviceConfig.NAMESPACE_TELEPHONY, MMS_SERVICE_NETWORK_REQUEST_TIMEOUT_MILLIS,
-                DEFAULT_MMS_SERVICE_NETWORK_REQUEST_TIMEOUT_MILLIS);
-    }
-
 
     /**
      * Release the MMS network when nobody is holding on to it.
