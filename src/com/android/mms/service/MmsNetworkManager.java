@@ -149,7 +149,10 @@ public class MmsNetworkManager {
             LogUtil.w("NetworkCallbackListener.onLost: network=" + network);
             synchronized (MmsNetworkManager.this) {
                 // Wait for other available network. Not notify.
-                if (network.equals(mNetwork)) mNetwork = null;
+                if (network.equals(mNetwork)) {
+                    mNetwork = null;
+                    mMmsHttpClient = null;
+                }
             }
         }
 
@@ -176,6 +179,7 @@ public class MmsNetworkManager {
                 if (network.equals(mNetwork) && !isAvailable) {
                     // Current network becomes suspended.
                     mNetwork = null;
+                    mMmsHttpClient = null;
                     // Not notify. Either wait for other available network or current network to
                     // become available again.
                     return;
@@ -265,16 +269,13 @@ public class MmsNetworkManager {
                 LogUtil.d(requestId, "MmsNetworkManager: already available");
                 return;
             }
-            // Not available, so start a new request if not done yet
-            if (mNetworkCallback == null) {
+
+            if (!mReceiverRegistered) {
                 mPhoneId = mDeps.getPhoneId(mSubId);
                 if (mPhoneId == SubscriptionManager.INVALID_PHONE_INDEX
                         || mPhoneId == SubscriptionManager.DEFAULT_PHONE_INDEX) {
                     throw new MmsNetworkException("Invalid Phone Id: " + mPhoneId);
                 }
-
-                LogUtil.d(requestId, "MmsNetworkManager: start new network request");
-                startNewNetworkRequestLocked(networkRequestTimeoutMillis);
 
                 // Register a receiver to listen to ACTION_SIM_CARD_STATE_CHANGED
                 mContext.registerReceiver(
@@ -282,6 +283,13 @@ public class MmsNetworkManager {
                         new IntentFilter(TelephonyManager.ACTION_SIM_CARD_STATE_CHANGED));
                 mReceiverRegistered = true;
             }
+
+            // Not available, so start a new request if not done yet
+            if (mNetworkCallback == null) {
+                LogUtil.d(requestId, "MmsNetworkManager: start new network request");
+                startNewNetworkRequestLocked(networkRequestTimeoutMillis);
+            }
+
             try {
                 this.wait(networkRequestTimeoutMillis
                         + mDeps.getAdditionalNetworkAcquireTimeoutMillis());
@@ -305,7 +313,7 @@ public class MmsNetworkManager {
                         "MmsNetworkManager: timed out with networkRequestTimeoutMillis="
                                 + networkRequestTimeoutMillis
                                 + " and ADDITIONAL_NETWORK_ACQUIRE_TIMEOUT_MILLIS="
-                                + ADDITIONAL_NETWORK_ACQUIRE_TIMEOUT_MILLIS);
+                                + mDeps.getAdditionalNetworkAcquireTimeoutMillis());
                 // Release the network request and wake up all the MmsRequests for fast-fail
                 // together.
                 // TODO: Start new network request for remaining MmsRequests?
