@@ -27,15 +27,14 @@ import android.os.Bundle;
 import android.service.carrier.CarrierMessagingService;
 import android.service.carrier.CarrierMessagingServiceWrapper.CarrierMessagingCallback;
 import android.telephony.AnomalyReporter;
-import android.telephony.PhoneStateListener;
 import android.telephony.PreciseDataConnectionState;
-import android.telephony.TelephonyCallback;
-import android.telephony.data.ApnSetting;
-import android.telephony.ims.feature.MmTelFeature;
-import android.telephony.ims.ImsMmTelManager;
-import android.telephony.ims.stub.ImsRegistrationImplBase;
 import android.telephony.SmsManager;
+import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
+import android.telephony.data.ApnSetting;
+import android.telephony.ims.ImsMmTelManager;
+import android.telephony.ims.feature.MmTelFeature;
+import android.telephony.ims.stub.ImsRegistrationImplBase;
 
 import com.android.mms.service.exception.ApnException;
 import com.android.mms.service.exception.MmsHttpException;
@@ -299,7 +298,13 @@ public abstract class MmsRequest {
                 String message = "MMS failed";
                 LogUtil.i(this.toString(),
                         message + " with error: " + result + " httpStatus:" + httpStatusCode);
-                AnomalyReporter.reportAnomaly(generateUUID(result, httpStatusCode), message);
+                TelephonyManager telephonyManager =
+                        mContext.getSystemService(TelephonyManager.class)
+                                .createForSubscriptionId(mSubId);
+                AnomalyReporter.reportAnomaly(
+                        generateUUID(result, httpStatusCode),
+                        message,
+                        telephonyManager.getSimCarrierId());
                 break;
             default:
                 break;
