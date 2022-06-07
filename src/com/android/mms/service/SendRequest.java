@@ -36,6 +36,8 @@ import android.text.TextUtils;
 import com.android.internal.telephony.SmsApplication;
 import com.android.internal.telephony.SmsNumberUtils;
 import com.android.mms.service.exception.MmsHttpException;
+import com.android.mms.service.metrics.MmsStats;
+
 import com.google.android.mms.MmsException;
 import com.google.android.mms.pdu.EncodedStringValue;
 import com.google.android.mms.pdu.GenericPdu;
@@ -58,8 +60,8 @@ public class SendRequest extends MmsRequest {
 
     public SendRequest(RequestManager manager, int subId, Uri contentUri, String locationUrl,
             PendingIntent sentIntent, String creator, Bundle configOverrides, Context context,
-            long messageId) {
-        super(manager, subId, creator, configOverrides, context, messageId);
+            long messageId, MmsStats mmsStats) {
+        super(manager, subId, creator, configOverrides, context, messageId, mmsStats);
         mPduUri = contentUri;
         mPduData = null;
         mLocationUrl = locationUrl;
