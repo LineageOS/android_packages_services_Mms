@@ -38,6 +38,8 @@ import android.telephony.SmsManager;
 import android.text.TextUtils;
 
 import com.android.mms.service.exception.MmsHttpException;
+import com.android.mms.service.metrics.MmsStats;
+
 import com.google.android.mms.MmsException;
 import com.google.android.mms.pdu.GenericPdu;
 import com.google.android.mms.pdu.PduHeaders;
@@ -59,8 +61,8 @@ public class DownloadRequest extends MmsRequest {
 
     public DownloadRequest(RequestManager manager, int subId, String locationUrl,
             Uri contentUri, PendingIntent downloadedIntent, String creator,
-            Bundle configOverrides, Context context, long messageId) {
-        super(manager, subId, creator, configOverrides, context, messageId);
+            Bundle configOverrides, Context context, long messageId, MmsStats mmsStats) {
+        super(manager, subId, creator, configOverrides, context, messageId, mmsStats);
         mLocationUrl = locationUrl;
         mDownloadedIntent = downloadedIntent;
         mContentUri = contentUri;
