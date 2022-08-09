@@ -31,7 +31,6 @@ import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.UiccCardInfo;
-import android.util.Log;
 
 import com.android.internal.telephony.SmsApplication;
 import com.android.mms.IncomingMms;
@@ -162,7 +161,8 @@ public class MmsStats {
     /** Returns data network roaming type of current subscription. */
     private int getDataRoamingType() {
         ServiceState serviceState = mTelephonyManager.getServiceState();
-        return serviceState.getDataRoamingType();
+        return (serviceState != null) ? serviceState.getDataRoamingType() :
+                ServiceState.ROAMING_TYPE_NOT_ROAMING;
     }
 
     /** Returns slot index associated with the subscription. */
@@ -173,6 +173,10 @@ public class MmsStats {
     /** Returns whether the device has multiple active SIM profiles. */
     private boolean getIsMultiSim() {
         SubscriptionManager subManager = mContext.getSystemService(SubscriptionManager.class);
+        if(subManager == null) {
+            return false;
+        }
+
         List<SubscriptionInfo> activeSubscriptionInfo = subManager.getActiveSubscriptionInfoList();
         return (activeSubscriptionInfo.size() > 1);
     }
