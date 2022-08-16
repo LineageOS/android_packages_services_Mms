@@ -207,7 +207,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         @Override
         public void sendMessage(int subId, String callingPkg, Uri contentUri,
                 String locationUrl, Bundle configOverrides, PendingIntent sentIntent,
-                long messageId) {
+                long messageId, String attributionTag) {
             LogUtil.d("sendMessage " + formatCrossStackMessageId(messageId));
             enforceSystemUid();
 
@@ -278,8 +278,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
         @Override
         public void downloadMessage(int subId, String callingPkg, String locationUrl,
-                Uri contentUri, Bundle configOverrides,
-                PendingIntent downloadedIntent, long messageId) {
+                Uri contentUri, Bundle configOverrides, PendingIntent downloadedIntent,
+                long messageId, String attributionTag) {
             // If the subId is no longer active it could be caused by an MVNO using multiple
             // subIds, so we should try to download anyway.
             // TODO: Fail fast when downloading will fail (i.e. SIM swapped)
