@@ -41,6 +41,7 @@ import android.provider.Settings;
 import android.provider.Telephony;
 import android.security.NetworkSecurityPolicy;
 import android.service.carrier.CarrierMessagingService;
+import android.telephony.AnomalyReporter;
 import android.telephony.SmsManager;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
@@ -600,6 +601,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 MmsStats mmsStats) {
             sendErrorInPendingIntent(pendingIntent, resultCode);
             mmsStats.addAtomToStorage(resultCode);
+            String message = "MMS failed" + " with error " + resultCode;
+            AnomalyReporter.reportAnomaly(MmsConstants.MMS_ANOMALY_UUID, message);
         }
     };
 
