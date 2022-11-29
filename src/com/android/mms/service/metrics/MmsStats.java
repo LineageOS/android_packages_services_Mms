@@ -25,6 +25,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.os.Binder;
 import android.os.SystemClock;
+import android.os.UserHandle;
 import android.telephony.ServiceState;
 import android.telephony.SmsManager;
 import android.telephony.SubscriptionInfo;
@@ -199,7 +200,12 @@ public class MmsStats {
 
     /** Returns if the MMS was originated from the default MMS application. */
     private boolean isDefaultMmsApp() {
-        return SmsApplication.isDefaultMmsApplication(mContext, mCallingPkg);
+        UserHandle userHandle = null;
+        SubscriptionManager subManager = mContext.getSystemService(SubscriptionManager.class);
+        if ((subManager != null) && (subManager.isActiveSubscriptionId(mSubId))) {
+            userHandle = subManager.getSubscriptionUserHandle(mSubId);
+        }
+        return SmsApplication.isDefaultMmsApplicationAsUser(mContext, mCallingPkg, userHandle);
     }
 
     /**

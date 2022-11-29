@@ -25,11 +25,13 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Bundle;
+import android.os.UserHandle;
 import android.provider.BlockedNumberContract;
 import android.provider.Telephony;
 import android.service.carrier.CarrierMessagingService;
 import android.service.carrier.CarrierMessagingServiceWrapper;
 import android.telephony.SmsManager;
+import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 
@@ -174,10 +176,16 @@ public class SendRequest extends MmsRequest {
     @Override
     protected Uri persistIfRequired(Context context, int result, byte[] response) {
         final String requestId = getRequestId();
-        if (!SmsApplication.shouldWriteMessageForPackage(mCreator, context)) {
-            // Not required to persist
+
+        UserHandle userHandle = null;
+        SubscriptionManager subManager = mContext.getSystemService(SubscriptionManager.class);
+        if ((subManager != null) && (subManager.isActiveSubscriptionId(mSubId))) {
+            userHandle = subManager.getSubscriptionUserHandle(mSubId);
+        }
+        if (!SmsApplication.shouldWriteMessageForPackageAsUser(mCreator, context, userHandle)) {
             return null;
         }
+
         LogUtil.d(requestId, "persistIfRequired. "
                 + MmsService.formatCrossStackMessageId(mMessageId));
         if (mPduData == null) {
