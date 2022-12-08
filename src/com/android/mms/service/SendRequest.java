@@ -177,11 +177,17 @@ public class SendRequest extends MmsRequest {
     protected Uri persistIfRequired(Context context, int result, byte[] response) {
         final String requestId = getRequestId();
 
+        SubscriptionManager subManager = context.getSystemService(SubscriptionManager.class);
         UserHandle userHandle = null;
-        SubscriptionManager subManager = mContext.getSystemService(SubscriptionManager.class);
-        if ((subManager != null) && (subManager.isActiveSubscriptionId(mSubId))) {
-            userHandle = subManager.getSubscriptionUserHandle(mSubId);
+        long identity = Binder.clearCallingIdentity();
+        try {
+            if ((subManager != null) && (subManager.isActiveSubscriptionId(mSubId))) {
+                userHandle = subManager.getSubscriptionUserHandle(mSubId);
+            }
+        } finally {
+            Binder.restoreCallingIdentity(identity);
         }
+
         if (!SmsApplication.shouldWriteMessageForPackageAsUser(mCreator, context, userHandle)) {
             return null;
         }
@@ -193,7 +199,7 @@ public class SendRequest extends MmsRequest {
                     + MmsService.formatCrossStackMessageId(mMessageId));
             return null;
         }
-        final long identity = Binder.clearCallingIdentity();
+        identity = Binder.clearCallingIdentity();
         try {
             final boolean supportContentDisposition =
                     mMmsConfig.getBoolean(SmsManager.MMS_CONFIG_SUPPORT_MMS_CONTENT_DISPOSITION);
