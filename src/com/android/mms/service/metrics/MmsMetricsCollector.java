@@ -90,7 +90,8 @@ public class MmsMetricsCollector implements StatsManager.StatsPullAtomCallback {
                 mms.getAvgIntervalMillis(),
                 mms.getMmsCount(),
                 mms.getRetryId(),
-                mms.getHandledByCarrierApp());
+                mms.getHandledByCarrierApp(),
+                mms.getIsManagedProfile());
     }
 
     private static StatsEvent buildStatsEvent(OutgoingMms mms) {
@@ -107,7 +108,8 @@ public class MmsMetricsCollector implements StatsManager.StatsPullAtomCallback {
                 mms.getMmsCount(),
                 mms.getIsFromDefaultApp(),
                 mms.getRetryId(),
-                mms.getHandledByCarrierApp());
+                mms.getHandledByCarrierApp(),
+                mms.getIsManagedProfile());
     }
 
     @Override

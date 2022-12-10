@@ -50,6 +50,7 @@ message IncomingMms {
   optional int64 mms_count = 9;
   optional int32 retry_id = 10;
   optional bool handled_by_carrier_app = 11;
+  optional bool is_managed_profile = 12;
 }
 
 message OutgoingMms {
@@ -65,4 +66,5 @@ message OutgoingMms {
   optional bool is_from_default_app = 10;
   optional int32 retry_id = 11;
   optional bool handled_by_carrier_app = 12;
+  optional bool is_managed_profile = 13;
 }
