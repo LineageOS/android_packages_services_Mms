@@ -24,7 +24,6 @@ import android.content.Context;
 import android.util.Log;
 import android.util.StatsEvent;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.mms.IncomingMms;
@@ -56,10 +55,6 @@ public class MmsMetricsCollector implements StatsManager.StatsPullAtomCallback {
      */
     private static final long MIN_COOLDOWN_MILLIS =
             DBG ? 10L * MILLIS_PER_SECOND : 23L * MILLIS_PER_HOUR;
-    private static final StatsManager.PullAtomMetadata POLICY_PULL_DAILY =
-            new StatsManager.PullAtomMetadata.Builder()
-                    .setCoolDownMillis(MIN_COOLDOWN_MILLIS)
-                    .build();
     private final PersistMmsAtomsStorage mStorage;
     private final StatsManager mStatsManager;
 
@@ -73,8 +68,8 @@ public class MmsMetricsCollector implements StatsManager.StatsPullAtomCallback {
         mStorage = storage;
         mStatsManager = context.getSystemService(StatsManager.class);
         if (mStatsManager != null) {
-            registerAtom(INCOMING_MMS, POLICY_PULL_DAILY);
-            registerAtom(OUTGOING_MMS, POLICY_PULL_DAILY);
+            registerAtom(INCOMING_MMS);
+            registerAtom(OUTGOING_MMS);
             Log.d(TAG, "[MmsMetricsCollector]: registered atoms");
         } else {
             Log.e(TAG, "[MmsMetricsCollector]: could not get StatsManager, "
@@ -152,9 +147,10 @@ public class MmsMetricsCollector implements StatsManager.StatsPullAtomCallback {
         }
     }
 
-    /** Registers a pulled atom ID {@code atomId} with optional {@code policy} for pulling. */
-    private void registerAtom(int atomId, @Nullable StatsManager.PullAtomMetadata policy) {
-        mStatsManager.setPullAtomCallback(atomId, policy, ConcurrentUtils.DIRECT_EXECUTOR, this);
+    /** Registers a pulled atom ID {@code atomId}. */
+    private void registerAtom(int atomId) {
+        mStatsManager.setPullAtomCallback(atomId, /* metadata= */ null,
+                ConcurrentUtils.DIRECT_EXECUTOR, this);
     }
 
     /** Returns the {@link PersistMmsAtomsStorage} backing the puller. */
