@@ -91,6 +91,7 @@ public class MmsStatsTest {
         assertThat(incomingMms.getMmsCount()).isEqualTo(1);
         assertThat(incomingMms.getRetryId()).isEqualTo(0);
         assertThat(incomingMms.getHandledByCarrierApp()).isEqualTo(false);
+        assertThat(incomingMms.getIsManagedProfile()).isEqualTo(false);
         verifyNoMoreInteractions(mPersistMmsAtomsStorage);
     }
 
@@ -118,6 +119,7 @@ public class MmsStatsTest {
         assertThat(outgoingMms.getRetryId()).isEqualTo(0);
         assertThat(outgoingMms.getHandledByCarrierApp()).isEqualTo(false);
         assertThat(outgoingMms.getIsFromDefaultApp()).isEqualTo(false);
+        assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
         verifyNoMoreInteractions(mPersistMmsAtomsStorage);
     }
 
