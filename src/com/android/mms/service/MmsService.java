@@ -185,7 +185,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
         if (carrierPackages == null || carrierPackages.size() != 1) {
             LogUtil.d("getCarrierMessagingServicePackageIfExists - multiple ("
-                    + carrierPackages.size() + ") carrier apps installed, not using any.");
+                    + carrierPackages.size() + ") or no carrier apps installed, not using any.");
             return null;
         } else {
             return carrierPackages.get(0);
@@ -634,9 +634,14 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                         + " current subId=" + mCurrentSubId);
                 addToRunningRequestQueueSynchronized(request);
             }
+            dumpRequestQueue();
         }
     }
 
+    private void dumpRequestQueue() {
+        LogUtil.d("request queue dump [size: " + mPendingSimRequestQueue.size() + "]:");
+        mPendingSimRequestQueue.forEach(request -> LogUtil.d(request.toString()));
+    }
     private void sendSettingsIntentForFailedMms(boolean isIncoming, int subId) {
         LogUtil.w("Subscription with id: " + subId
                 + " cannot " + (isIncoming ? "download" : "send")

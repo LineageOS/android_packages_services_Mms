@@ -101,6 +101,20 @@ public abstract class MmsRequest {
     protected long mMessageId;
     protected int mLastConnectionFailure;
     private MmsStats mMmsStats;
+    private int result;
+    private int httpStatusCode;
+
+    protected enum MmsRequestState {
+        Unknown,
+        Created,
+        PrepareForHttpRequest,
+        AcquiringNetwork,
+        LoadingApn,
+        DoingHttp,
+        Success,
+        Failure
+    };
+    protected MmsRequestState currentState = MmsRequestState.Unknown;
 
     class MonitorTelephonyCallback extends TelephonyCallback implements
             TelephonyCallback.PreciseDataConnectionStateListener {
@@ -122,6 +136,7 @@ public abstract class MmsRequest {
 
     public MmsRequest(RequestManager requestManager, int subId, String creator,
             Bundle mmsConfig, Context context, long messageId, MmsStats mmsStats) {
+        currentState = MmsRequestState.Created;
         mRequestManager = requestManager;
         mSubId = subId;
         mCreator = creator;
@@ -144,10 +159,11 @@ public abstract class MmsRequest {
     public void execute(Context context, MmsNetworkManager networkManager) {
         final String requestId = this.getRequestId();
         LogUtil.i(requestId, "Executing...");
-        int result = SmsManager.MMS_ERROR_UNSPECIFIED;
-        int httpStatusCode = 0;
+        result = SmsManager.MMS_ERROR_UNSPECIFIED;
+        httpStatusCode = 0;
         byte[] response = null;
         int retryId = 0;
+        currentState = MmsRequestState.PrepareForHttpRequest;
         // TODO: add mms data channel check back to fast fail if no way to send mms,
         // when telephony provides such API.
         if (!prepareForHttpRequest()) { // Prepare request, like reading pdu data from user
@@ -161,11 +177,13 @@ public abstract class MmsRequest {
                 MonitorTelephonyCallback connectionStateCallback = new MonitorTelephonyCallback();
                 try {
                     listenToDataConnectionState(connectionStateCallback);
+                    currentState = MmsRequestState.AcquiringNetwork;
                     networkManager.acquireNetwork(requestId);
                     final String apnName = networkManager.getApnName();
                     LogUtil.d(requestId, "APN name is " + apnName);
                     try {
                         ApnSettings apn = null;
+                        currentState = MmsRequestState.LoadingApn;
                         try {
                             apn = ApnSettings.load(context, apnName, mSubId, requestId);
                         } catch (ApnException e) {
@@ -179,6 +197,7 @@ public abstract class MmsRequest {
                             apn = ApnSettings.load(context, null, mSubId, requestId);
                         }
                         LogUtil.i(requestId, "Using " + apn.toString());
+                        currentState = MmsRequestState.DoingHttp;
                         response = doHttp(context, networkManager, apn);
                         result = Activity.RESULT_OK;
                         // Success
@@ -251,6 +270,8 @@ public abstract class MmsRequest {
         final Uri messageUri = persistIfRequired(context, result, response);
 
         final String requestId = this.getRequestId();
+        currentState = result == Activity.RESULT_OK ? MmsRequestState.Success
+                : MmsRequestState.Failure;
         // As noted in the @param comment above, the httpStatusCode is only set when there's
         // an http failure. On success, such as an http code of 200, the value here will be 0.
         // "httpStatusCode: xxx" is now reported for an http failure only.
@@ -409,7 +430,10 @@ public abstract class MmsRequest {
     @Override
     public String toString() {
         return getClass().getSimpleName() + '@' + Integer.toHexString(hashCode())
-                + " " + MmsService.formatCrossStackMessageId(mMessageId);
+                + " " + MmsService.formatCrossStackMessageId(mMessageId)
+                + " subId: " + mSubId
+                + " currentState: \"" + currentState.name() + "\""
+                + " result: " + result;
     }
 
     protected String getRequestId() {
