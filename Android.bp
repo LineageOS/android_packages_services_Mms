@@ -53,8 +53,8 @@ android_app {
 }
 
 filegroup {
-    name: "mms-metrics-srcs",
+    name: "mms-service-srcs",
     srcs: [
-        "src/com/android/mms/service/metrics/*.java",
+        "src/com/android/mms/service/**/*.java",
     ],
 }
