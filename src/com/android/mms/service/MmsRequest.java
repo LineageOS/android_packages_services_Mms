@@ -16,6 +16,7 @@
 
 package com.android.mms.service;
 
+import android.annotation.NonNull;
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -39,9 +40,12 @@ import android.telephony.ims.stub.ImsRegistrationImplBase;
 import com.android.mms.service.exception.ApnException;
 import com.android.mms.service.exception.MmsHttpException;
 import com.android.mms.service.exception.MmsNetworkException;
+import com.android.mms.service.exception.VoluntaryDisconnectMmsHttpException;
 import com.android.mms.service.metrics.MmsStats;
 
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Base class for MMS requests. This has the common logic of sending/downloading MMS.
@@ -164,15 +168,14 @@ public abstract class MmsRequest {
         byte[] response = null;
         int retryId = 0;
         currentState = MmsRequestState.PrepareForHttpRequest;
-        // TODO: add mms data channel check back to fast fail if no way to send mms,
-        // when telephony provides such API.
+        int attemptedTimes = 0;
         if (!prepareForHttpRequest()) { // Prepare request, like reading pdu data from user
             LogUtil.e(requestId, "Failed to prepare for request");
             result = SmsManager.MMS_ERROR_IO_ERROR;
         } else { // Execute
             long retryDelaySecs = 2;
             // Try multiple times of MMS HTTP request, depending on the error.
-            for (retryId = 0; retryId < RETRY_TIMES; retryId++) {
+            while (retryId < RETRY_TIMES) {
                 httpStatusCode = 0; // Clear for retry.
                 MonitorTelephonyCallback connectionStateCallback = new MonitorTelephonyCallback();
                 try {
@@ -181,32 +184,26 @@ public abstract class MmsRequest {
                     networkManager.acquireNetwork(requestId);
                     final String apnName = networkManager.getApnName();
                     LogUtil.d(requestId, "APN name is " + apnName);
+                    ApnSettings apn = null;
+                    currentState = MmsRequestState.LoadingApn;
                     try {
-                        ApnSettings apn = null;
-                        currentState = MmsRequestState.LoadingApn;
-                        try {
-                            apn = ApnSettings.load(context, apnName, mSubId, requestId);
-                        } catch (ApnException e) {
-                            // If no APN could be found, fall back to trying without the APN name
-                            if (apnName == null) {
-                                // If the APN name was already null then don't need to retry
-                                throw (e);
-                            }
-                            LogUtil.i(requestId, "No match with APN name: "
-                                    + apnName + ", try with no name");
-                            apn = ApnSettings.load(context, null, mSubId, requestId);
+                        apn = ApnSettings.load(context, apnName, mSubId, requestId);
+                    } catch (ApnException e) {
+                        // If no APN could be found, fall back to trying without the APN name
+                        if (apnName == null) {
+                            // If the APN name was already null then don't need to retry
+                            throw (e);
                         }
-                        LogUtil.i(requestId, "Using " + apn.toString());
-                        currentState = MmsRequestState.DoingHttp;
-                        response = doHttp(context, networkManager, apn);
-                        result = Activity.RESULT_OK;
-                        // Success
-                        break;
-                    } finally {
-                        // Release the MMS network immediately except successful DownloadRequest.
-                        networkManager.releaseNetwork(requestId,
-                                this instanceof DownloadRequest && result == Activity.RESULT_OK);
+                        LogUtil.i(requestId, "No match with APN name: "
+                                + apnName + ", try with no name");
+                        apn = ApnSettings.load(context, null, mSubId, requestId);
                     }
+                    LogUtil.i(requestId, "Using " + apn.toString());
+                    currentState = MmsRequestState.DoingHttp;
+                    response = doHttp(context, networkManager, apn);
+                    result = Activity.RESULT_OK;
+                    // Success
+                    break;
                 } catch (ApnException e) {
                     LogUtil.e(requestId, "APN failure", e);
                     result = SmsManager.MMS_ERROR_INVALID_APN;
@@ -216,8 +213,12 @@ public abstract class MmsRequest {
                     result = SmsManager.MMS_ERROR_UNABLE_CONNECT_MMS;
                     break;
                 } catch (MmsHttpException e) {
-                    LogUtil.e(requestId, "HTTP or network I/O failure", e);
-                    result = SmsManager.MMS_ERROR_HTTP_FAILURE;
+                    if (e instanceof VoluntaryDisconnectMmsHttpException) {
+                        result = Activity.RESULT_CANCELED;
+                    } else {
+                        LogUtil.e(requestId, "HTTP or network I/O failure", e);
+                        result = SmsManager.MMS_ERROR_HTTP_FAILURE;
+                    }
                     httpStatusCode = e.getStatusCode();
                     // Retry
                 } catch (Exception e) {
@@ -225,12 +226,43 @@ public abstract class MmsRequest {
                     result = SmsManager.MMS_ERROR_UNSPECIFIED;
                     break;
                 } finally {
+                    // Don't release the MMS network if the last attempt was voluntarily
+                    // cancelled (due to better network available), because releasing the request
+                    // could result that network being torn down as it's thought to be useless.
+                    boolean canRelease = false;
+                    if (result != Activity.RESULT_CANCELED) {
+                        retryId++;
+                        canRelease = true;
+                    }
+                    // Otherwise, delay the release for successful download request.
+                    networkManager.releaseNetwork(requestId, canRelease,
+                            this instanceof DownloadRequest && result == Activity.RESULT_OK);
+
                     stopListeningToDataConnectionState(connectionStateCallback);
                 }
-                try {
-                    Thread.sleep(retryDelaySecs * 1000, 0/*nano*/);
-                } catch (InterruptedException e) {}
-                retryDelaySecs <<= 1;
+
+                // THEORETICALLY WOULDN'T OCCUR - PUTTING HERE AS A SAFETY NET.
+                // TODO: REMOVE WITH FLAG mms_enhancement_enabled after soaking enough time, V-QPR.
+                // Only possible if network kept disconnecting due to Activity.RESULT_CANCELED,
+                // causing retryId doesn't increase and thus stuck in the infinite loop.
+                // However, it's theoretically impossible because RESULT_CANCELED is only triggered
+                // when a WLAN network becomes newly available in addition to an existing network.
+                // Therefore, the WLAN network's own death cannot be triggered by RESULT_CANCELED,
+                // and thus must result in retryId++.
+                if (++attemptedTimes > RETRY_TIMES * 2) {
+                    LogUtil.e(requestId, "Retry is performed too many times");
+                    reportAnomaly("MMS retried too many times",
+                            UUID.fromString("038c9155-5daa-4515-86ae-aafdd33c1435"));
+                    break;
+                }
+
+                if (result != Activity.RESULT_CANCELED) {
+                    try { // Cool down retry if the previous attempt wasn't voluntarily cancelled.
+                        new CountDownLatch(1).await(retryDelaySecs, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) { }
+                    // Double the cool down time if the next try fails again.
+                    retryDelaySecs <<= 1;
+                }
             }
         }
         processResult(context, result, response, httpStatusCode, /* handledByCarrierApp= */ false,
@@ -328,16 +360,22 @@ public abstract class MmsRequest {
                 String message = "MMS failed";
                 LogUtil.i(this.toString(),
                         message + " with error: " + result + " httpStatus:" + httpStatusCode);
-                TelephonyManager telephonyManager =
-                        mContext.getSystemService(TelephonyManager.class)
-                                .createForSubscriptionId(mSubId);
-                AnomalyReporter.reportAnomaly(
-                        generateUUID(result, httpStatusCode),
-                        message,
-                        telephonyManager.getSimCarrierId());
+                reportAnomaly(message, generateUUID(result, httpStatusCode));
                 break;
             default:
                 break;
+        }
+    }
+
+    private void reportAnomaly(@NonNull String anomalyMsg, @NonNull UUID uuid) {
+        TelephonyManager telephonyManager =
+                mContext.getSystemService(TelephonyManager.class)
+                        .createForSubscriptionId(mSubId);
+        if (telephonyManager != null) {
+            AnomalyReporter.reportAnomaly(
+                    uuid,
+                    anomalyMsg,
+                    telephonyManager.getSimCarrierId());
         }
     }
 
