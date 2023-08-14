@@ -96,7 +96,7 @@ public class MmsNetworkManager {
 
     private final Dependencies mDeps;
 
-    private int mNetworkReleaseTimeoutMillis = (5 * 1000);
+    private int mNetworkReleaseTimeoutMillis;
     private EventHandler mEventHandler;
 
     private final class EventHandler extends Handler {
@@ -192,10 +192,6 @@ public class MmsNetworkManager {
                 (CarrierConfigManager)
                         mContext.getSystemService(Context.CARRIER_CONFIG_SERVICE);
         final PersistableBundle config = configManager.getConfigForSubId(mSubId);
-        if (config == null) {
-                LogUtil.e("MmsNetworkManager: handleCarrierConfigChanged() config is null");
-                return;
-        }
         mNetworkReleaseTimeoutMillis =
                 config.getInt(CarrierConfigManager.KEY_MMS_NETWORK_RELEASE_TIMEOUT_MILLIS_INT);
         LogUtil.d("MmsNetworkManager: handleCarrierConfigChanged() mNetworkReleaseTimeoutMillis "

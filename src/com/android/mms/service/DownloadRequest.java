@@ -298,10 +298,12 @@ public class DownloadRequest extends MmsRequest {
             if (mCarrierMessagingServiceWrapper.bindToCarrierMessagingService(
                     context, carrierMessagingServicePackage, Runnable::run,
                     ()->onServiceReady())) {
-                LogUtil.v("bindService() for carrier messaging service succeeded. "
+                LogUtil.v("bindService() for carrier messaging service: "
+                        + carrierMessagingServicePackage + " succeeded. "
                         + MmsService.formatCrossStackMessageId(mMessageId));
             } else {
-                LogUtil.e("bindService() for carrier messaging service failed. "
+                LogUtil.e("bindService() for carrier messaging service: "
+                        + carrierMessagingServicePackage + " failed. "
                         + MmsService.formatCrossStackMessageId(mMessageId));
                 carrierDownloadCallback.onDownloadMmsComplete(
                         CarrierMessagingService.DOWNLOAD_STATUS_RETRY_ON_CARRIER_NETWORK);

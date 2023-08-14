@@ -50,8 +50,6 @@ public abstract class MmsRequest {
     private static final int RETRY_TIMES = 3;
     // Signal level threshold for both wifi and cellular
     private static final int SIGNAL_LEVEL_THRESHOLD = 2;
-    // MMS anomaly uuid
-    private final UUID mAnomalyUUID = UUID.fromString("e4330975-17be-43b7-87d6-d9f281d33278");
     public static final String EXTRA_LAST_CONNECTION_FAILURE_CAUSE_CODE
             = "android.telephony.extra.LAST_CONNECTION_FAILURE_CAUSE_CODE";
     public static final String EXTRA_HANDLED_BY_CARRIER_APP
@@ -325,8 +323,9 @@ public abstract class MmsRequest {
     private UUID generateUUID(int result, int httpStatusCode) {
         long lresult = result;
         long lhttpStatusCode = httpStatusCode;
-        return new UUID(mAnomalyUUID.getMostSignificantBits(),
-                mAnomalyUUID.getLeastSignificantBits() + ((lhttpStatusCode << 32) + lresult));
+        return new UUID(MmsConstants.MMS_ANOMALY_UUID.getMostSignificantBits(),
+                MmsConstants.MMS_ANOMALY_UUID.getLeastSignificantBits()
+                        + ((lhttpStatusCode << 32) + lresult));
     }
 
     private boolean isPoorSignal() {
