@@ -25,11 +25,13 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Bundle;
+import android.os.UserHandle;
 import android.provider.BlockedNumberContract;
 import android.provider.Telephony;
 import android.service.carrier.CarrierMessagingService;
 import android.service.carrier.CarrierMessagingServiceWrapper;
 import android.telephony.SmsManager;
+import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 
@@ -174,10 +176,22 @@ public class SendRequest extends MmsRequest {
     @Override
     protected Uri persistIfRequired(Context context, int result, byte[] response) {
         final String requestId = getRequestId();
-        if (!SmsApplication.shouldWriteMessageForPackage(mCreator, context)) {
-            // Not required to persist
+
+        SubscriptionManager subManager = context.getSystemService(SubscriptionManager.class);
+        UserHandle userHandle = null;
+        long identity = Binder.clearCallingIdentity();
+        try {
+            if ((subManager != null) && (subManager.isActiveSubscriptionId(mSubId))) {
+                userHandle = subManager.getSubscriptionUserHandle(mSubId);
+            }
+        } finally {
+            Binder.restoreCallingIdentity(identity);
+        }
+
+        if (!SmsApplication.shouldWriteMessageForPackageAsUser(mCreator, context, userHandle)) {
             return null;
         }
+
         LogUtil.d(requestId, "persistIfRequired. "
                 + MmsService.formatCrossStackMessageId(mMessageId));
         if (mPduData == null) {
@@ -185,7 +199,7 @@ public class SendRequest extends MmsRequest {
                     + MmsService.formatCrossStackMessageId(mMessageId));
             return null;
         }
-        final long identity = Binder.clearCallingIdentity();
+        identity = Binder.clearCallingIdentity();
         try {
             final boolean supportContentDisposition =
                     mMmsConfig.getBoolean(SmsManager.MMS_CONFIG_SUPPORT_MMS_CONTENT_DISPOSITION);
@@ -419,10 +433,12 @@ public class SendRequest extends MmsRequest {
             if (mCarrierMessagingServiceWrapper.bindToCarrierMessagingService(
                     context, carrierMessagingServicePackage, Runnable::run,
                     () -> onServiceReady())) {
-                LogUtil.v("bindService() for carrier messaging service succeeded. "
+                LogUtil.v("bindService() for carrier messaging service: "
+                        + carrierMessagingServicePackage + " succeeded. "
                         + MmsService.formatCrossStackMessageId(mMessageId));
             } else {
-                LogUtil.e("bindService() for carrier messaging service failed. "
+                LogUtil.e("bindService() for carrier messaging service: "
+                        + carrierMessagingServicePackage + " failed. "
                         + MmsService.formatCrossStackMessageId(mMessageId));
                 carrierSendCompleteCallback.onSendMmsComplete(
                         CarrierMessagingService.SEND_STATUS_RETRY_ON_CARRIER_NETWORK,

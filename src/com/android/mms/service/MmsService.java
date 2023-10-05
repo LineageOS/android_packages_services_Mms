@@ -41,6 +41,7 @@ import android.provider.Settings;
 import android.provider.Telephony;
 import android.security.NetworkSecurityPolicy;
 import android.service.carrier.CarrierMessagingService;
+import android.telephony.AnomalyReporter;
 import android.telephony.SmsManager;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
@@ -183,6 +184,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         List<String> carrierPackages = telephonyManager.getCarrierPackageNamesForIntent(intent);
 
         if (carrierPackages == null || carrierPackages.size() != 1) {
+            LogUtil.d("getCarrierMessagingServicePackageIfExists - multiple ("
+                    + carrierPackages.size() + ") carrier apps installed, not using any.");
             return null;
         } else {
             return carrierPackages.get(0);
@@ -264,8 +267,9 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                     getCarrierMessagingServicePackageIfExists(subId);
 
             if (carrierMessagingServicePackage != null) {
-                LogUtil.d(request.toString(), "sending message by carrier app "
-                        + formatCrossStackMessageId(messageId));
+                LogUtil.d(request.toString(), "sending message by carrier app: "
+                        + carrierMessagingServicePackage
+                        + " " + formatCrossStackMessageId(messageId));
                 request.trySendingByCarrierApp(MmsService.this, carrierMessagingServicePackage);
                 return;
             }
@@ -362,8 +366,9 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                     getCarrierMessagingServicePackageIfExists(subId);
 
             if (carrierMessagingServicePackage != null) {
-                LogUtil.d(request.toString(), "downloading message by carrier app "
-                        + formatCrossStackMessageId(messageId));
+                LogUtil.d(request.toString(), "downloading message by carrier app: "
+                        + carrierMessagingServicePackage
+                        + " " + formatCrossStackMessageId(messageId));
                 request.tryDownloadingByCarrierApp(MmsService.this, carrierMessagingServicePackage);
                 return;
             }
@@ -596,6 +601,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 MmsStats mmsStats) {
             sendErrorInPendingIntent(pendingIntent, resultCode);
             mmsStats.addAtomToStorage(resultCode);
+            String message = "MMS failed" + " with error " + resultCode;
+            AnomalyReporter.reportAnomaly(MmsConstants.MMS_ANOMALY_UUID, message);
         }
     };
 

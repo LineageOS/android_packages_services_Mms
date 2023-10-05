@@ -22,7 +22,9 @@ import static com.android.mms.MmsStatsLog.OUTGOING_MMS__RESULT__MMS_RESULT_SUCCE
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -38,6 +40,7 @@ import com.android.mms.OutgoingMms;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
 import org.mockito.ArgumentCaptor;
 
 public class MmsStatsTest {
@@ -45,12 +48,17 @@ public class MmsStatsTest {
     private Context mContext;
     private PersistMmsAtomsStorage mPersistMmsAtomsStorage;
     private TelephonyManager mTelephonyManager;
+    private SubscriptionManager mSubscriptionManager;
 
     @Before
     public void setUp() {
         mContext = mock(Context.class);
         mPersistMmsAtomsStorage = mock(PersistMmsAtomsStorage.class);
         mTelephonyManager = mock(TelephonyManager.class);
+        mSubscriptionManager = mock(SubscriptionManager.class);
+
+        doReturn(mSubscriptionManager).when(mContext).getSystemService(
+                Context.TELEPHONY_SUBSCRIPTION_SERVICE);
     }
 
     @After
@@ -83,6 +91,7 @@ public class MmsStatsTest {
         assertThat(incomingMms.getMmsCount()).isEqualTo(1);
         assertThat(incomingMms.getRetryId()).isEqualTo(0);
         assertThat(incomingMms.getHandledByCarrierApp()).isEqualTo(false);
+        assertThat(incomingMms.getIsManagedProfile()).isEqualTo(false);
         verifyNoMoreInteractions(mPersistMmsAtomsStorage);
     }
 
@@ -110,6 +119,7 @@ public class MmsStatsTest {
         assertThat(outgoingMms.getRetryId()).isEqualTo(0);
         assertThat(outgoingMms.getHandledByCarrierApp()).isEqualTo(false);
         assertThat(outgoingMms.getIsFromDefaultApp()).isEqualTo(false);
+        assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
         verifyNoMoreInteractions(mPersistMmsAtomsStorage);
     }
 
@@ -125,5 +135,20 @@ public class MmsStatsTest {
         verify(mPersistMmsAtomsStorage).addIncomingMms(incomingMmsCaptor.capture());
         IncomingMms incomingMms = incomingMmsCaptor.getValue();
         assertThat(incomingMms.getRoaming()).isEqualTo(ServiceState.ROAMING_TYPE_NOT_ROAMING);
+    }
+
+
+    @Test
+    public void isDefaultMmsApp_subId_inactive() {
+        int inactiveSubId = 123;
+        doReturn(false).when(mSubscriptionManager)
+                .isActiveSubscriptionId(eq(inactiveSubId));
+
+        MmsStats mmsStats = new MmsStats(mContext, mPersistMmsAtomsStorage, inactiveSubId,
+                mTelephonyManager, null, false);
+        mmsStats.addAtomToStorage(Activity.RESULT_OK);
+
+        // getSubscriptionUserHandle should not be called if subID is inactive.
+        verify(mSubscriptionManager, never()).getSubscriptionUserHandle(eq(inactiveSubId));
     }
 }

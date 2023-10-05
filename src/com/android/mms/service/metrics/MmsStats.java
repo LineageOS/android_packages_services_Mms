@@ -25,6 +25,8 @@ import android.app.Activity;
 import android.content.Context;
 import android.os.Binder;
 import android.os.SystemClock;
+import android.os.UserHandle;
+import android.os.UserManager;
 import android.telephony.ServiceState;
 import android.telephony.SmsManager;
 import android.telephony.SubscriptionInfo;
@@ -100,6 +102,7 @@ public class MmsStats {
                 .setMmsCount(1)
                 .setRetryId(retryId)
                 .setHandledByCarrierApp(handledByCarrierApp)
+                .setIsManagedProfile(isManagedProfile())
                 .build();
         mPersistMmsAtomsStorage.addIncomingMms(incomingMms);
     }
@@ -119,8 +122,19 @@ public class MmsStats {
                 .setIsFromDefaultApp(isDefaultMmsApp())
                 .setRetryId(retryId)
                 .setHandledByCarrierApp(handledByCarrierApp)
+                .setIsManagedProfile(isManagedProfile())
                 .build();
         mPersistMmsAtomsStorage.addOutgoingMms(outgoingMms);
+    }
+
+    /** @return {@code true} if this SIM is dedicated to work profile */
+    private boolean isManagedProfile() {
+        SubscriptionManager subManager = mContext.getSystemService(SubscriptionManager.class);
+        if (subManager == null || !subManager.isActiveSubscriptionId(mSubId)) return false;
+        UserHandle userHandle = subManager.getSubscriptionUserHandle(mSubId);
+        UserManager userManager = mContext.getSystemService(UserManager.class);
+        if (userHandle == null || userManager == null) return false;
+        return userManager.isManagedProfile(userHandle.getIdentifier());
     }
 
     /** Returns data network type of current subscription. */
@@ -199,7 +213,12 @@ public class MmsStats {
 
     /** Returns if the MMS was originated from the default MMS application. */
     private boolean isDefaultMmsApp() {
-        return SmsApplication.isDefaultMmsApplication(mContext, mCallingPkg);
+        UserHandle userHandle = null;
+        SubscriptionManager subManager = mContext.getSystemService(SubscriptionManager.class);
+        if ((subManager != null) && (subManager.isActiveSubscriptionId(mSubId))) {
+            userHandle = subManager.getSubscriptionUserHandle(mSubId);
+        }
+        return SmsApplication.isDefaultMmsApplicationAsUser(mContext, mCallingPkg, userHandle);
     }
 
     /**
