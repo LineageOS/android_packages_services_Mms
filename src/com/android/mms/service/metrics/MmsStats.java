@@ -35,6 +35,7 @@ import android.telephony.TelephonyManager;
 import android.telephony.UiccCardInfo;
 
 import com.android.internal.telephony.SmsApplication;
+import com.android.internal.telephony.flags.Flags;
 import com.android.mms.IncomingMms;
 import com.android.mms.OutgoingMms;
 
@@ -190,7 +191,9 @@ public class MmsStats {
         if(subManager == null) {
             return false;
         }
-
+        if (Flags.workProfileApiSplit()) {
+            subManager = subManager.createForAllUserProfiles();
+        }
         List<SubscriptionInfo> activeSubscriptionInfo = subManager.getActiveSubscriptionInfoList();
         return (activeSubscriptionInfo.size() > 1);
     }
