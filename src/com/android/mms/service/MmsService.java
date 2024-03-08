@@ -16,6 +16,8 @@
 
 package com.android.mms.service;
 
+import static android.telephony.SmsManager.MMS_ERROR_MMS_DISABLED_BY_CARRIER;
+
 import static com.google.android.mms.pdu.PduHeaders.MESSAGE_TYPE;
 import static com.google.android.mms.pdu.PduHeaders.MESSAGE_TYPE_SEND_REQ;
 
@@ -52,6 +54,7 @@ import android.util.EventLog;
 import android.util.SparseArray;
 
 import com.android.internal.telephony.IMms;
+import com.android.internal.telephony.flags.Flags;
 import com.android.mms.service.metrics.MmsMetricsCollector;
 import com.android.mms.service.metrics.MmsStats;
 
@@ -68,7 +71,6 @@ import com.google.android.mms.util.SqliteWrapper;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -80,7 +82,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * System service to process MMS API requests
@@ -185,7 +186,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
         if (carrierPackages == null || carrierPackages.size() != 1) {
             LogUtil.d("getCarrierMessagingServicePackageIfExists - multiple ("
-                    + carrierPackages.size() + ") carrier apps installed, not using any.");
+                    + carrierPackages.size() + ") or no carrier apps installed, not using any.");
             return null;
         } else {
             return carrierPackages.get(0);
@@ -255,7 +256,9 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             // Make sure MMS is enabled
             if (!mmsConfig.getBoolean(SmsManager.MMS_CONFIG_MMS_ENABLED)) {
                 LogUtil.e("MMS is not enabled for subId " + subId);
-                handleError(sentIntent, SmsManager.MMS_ERROR_CONFIGURATION_ERROR, mmsStats);
+                int resultCode = Flags.mmsDisabledError() ? MMS_ERROR_MMS_DISABLED_BY_CARRIER
+                        : SmsManager.MMS_ERROR_CONFIGURATION_ERROR;
+                handleError(sentIntent, resultCode, mmsStats);
                 return;
             }
 
@@ -283,7 +286,10 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 // AcknowledgeInd and NotifyRespInd are parts of downloading sequence.
                 // TODO: Should consider ReadRecInd(Read Report)?
                 sendSettingsIntentForFailedMms(!isRawPduSendReq(contentUri), subId);
-                handleError(sentIntent, SmsManager.MMS_ERROR_NO_DATA_NETWORK, mmsStats);
+
+                int resultCode = Flags.mmsDisabledError() ? SmsManager.MMS_ERROR_DATA_DISABLED
+                        : SmsManager.MMS_ERROR_NO_DATA_NETWORK;
+                handleError(sentIntent, resultCode, mmsStats);
                 return;
             }
 
@@ -634,9 +640,14 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                         + " current subId=" + mCurrentSubId);
                 addToRunningRequestQueueSynchronized(request);
             }
+            dumpRequestQueue();
         }
     }
 
+    private void dumpRequestQueue() {
+        LogUtil.d("request queue dump [size: " + mPendingSimRequestQueue.size() + "]:");
+        mPendingSimRequestQueue.forEach(request -> LogUtil.d(request.toString()));
+    }
     private void sendSettingsIntentForFailedMms(boolean isIncoming, int subId) {
         LogUtil.w("Subscription with id: " + subId
                 + " cannot " + (isIncoming ? "download" : "send")

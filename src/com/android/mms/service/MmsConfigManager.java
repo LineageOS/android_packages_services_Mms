@@ -27,6 +27,8 @@ import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.util.ArrayMap;
 
+import com.android.internal.telephony.flags.Flags;
+
 import java.util.List;
 import java.util.Map;
 
@@ -60,6 +62,9 @@ public class MmsConfigManager {
     public void init(final Context context) {
         mContext = context;
         mSubscriptionManager = SubscriptionManager.from(context);
+        if (Flags.workProfileApiSplit()) {
+            mSubscriptionManager = mSubscriptionManager.createForAllUserProfiles();
+        }
         context.registerReceiver(
                 mReceiver, new IntentFilter(CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED));
         LogUtil.i("MmsConfigManager loads mms config in init()");

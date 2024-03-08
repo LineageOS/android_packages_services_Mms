@@ -22,13 +22,16 @@ import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.fail;
 
+import static org.junit.Assert.assertNotSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
+import static org.robolectric.RuntimeEnvironment.getMasterScheduler;
 
 import android.content.Context;
 import android.net.ConnectivityManager;
@@ -38,6 +41,7 @@ import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
 import android.os.PersistableBundle;
 import android.telephony.CarrierConfigManager;
+import android.telephony.TelephonyManager;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -47,6 +51,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.robolectric.RobolectricTestRunner;
 
+import java.lang.reflect.Field;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -147,6 +152,29 @@ public final class MmsNetworkManagerTest {
         // New mTestNetwork2 available
         callback.onCapabilitiesChanged(mTestNetwork2, USABLE_NC);
         assertEquals(MMS_APN2, mMnm.getApnName());
+    }
+
+    @Test
+    public void testAvailableNetwork_wwanNetworkReplacedByWlanNetwork() throws Exception {
+        MmsHttpClient mockMmsHttpClient = mock(MmsHttpClient.class);
+        doReturn(true).when(mDeps).isMmsEnhancementEnabled();
+
+        // WWAN network is always available, whereas WLAN network needs extra time to be set up.
+        doReturn(TelephonyManager.NETWORK_TYPE_LTE).when(mNetworkInfo).getSubtype();
+        doReturn(TelephonyManager.NETWORK_TYPE_IWLAN).when(mNetworkInfo2).getSubtype();
+
+        final NetworkCallback callback = acquireAvailableNetworkAndGetCallback(
+                mTestNetwork /* expectNetwork */, MMS_APN /* expectApn */);
+        replaceInstance(MmsNetworkManager.class, "mMmsHttpClient", mMnm,
+                mockMmsHttpClient);
+
+        // The WLAN network become available.
+        callback.onCapabilitiesChanged(mTestNetwork2, USABLE_NC);
+        getMasterScheduler().advanceToLastPostedRunnable();
+
+        // Verify current connections disconnect, then the client is replaced with a new network.
+        verify(mockMmsHttpClient).disconnectAllUrlConnections();
+        assertNotSame(mMnm.getOrCreateHttpClient(), mockMmsHttpClient);
     }
 
     @Test
@@ -255,5 +283,13 @@ public final class MmsNetworkManagerTest {
         });
 
         return future;
+    }
+
+    /** Helper to replace instance field with reflection. */
+    private void replaceInstance(final Class c, final String instanceName,
+            final Object obj, final Object newValue) throws Exception {
+        Field field = c.getDeclaredField(instanceName);
+        field.setAccessible(true);
+        field.set(obj, newValue);
     }
 }

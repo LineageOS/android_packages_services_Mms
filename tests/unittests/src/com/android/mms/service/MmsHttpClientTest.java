@@ -18,9 +18,14 @@ package com.android.mms.service;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assert.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -29,22 +34,25 @@ import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.os.Bundle;
-import android.telephony.ServiceState;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 
 import androidx.test.core.app.ApplicationProvider;
 
+import com.android.mms.service.exception.VoluntaryDisconnectMmsHttpException;
+
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.MockitoAnnotations;
-import org.mockito.Spy;
 import org.junit.Test;
+import org.mockito.MockitoAnnotations;
 
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.reset;
-
-import android.util.Log;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.SocketException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class MmsHttpClientTest {
     // Mocked classes
@@ -144,5 +152,40 @@ public class MmsHttpClientTest {
         phoneNo = MmsHttpClient.getMacroValue(mContext, macro, mmsConfig, subId);
         assertThat(phoneNo).contains(subscriberPhoneNumber);
         verify(mSubscriptionManager).getPhoneNumber(subId);
+    }
+
+    @Test
+    public void testDisconnectAllUrlConnections() throws IOException {
+        Network mockNetwork = mock(Network.class);
+        HttpURLConnection mockConnection = mock(HttpURLConnection.class);
+        doReturn(mockConnection).when(mockNetwork).openConnection(any(), any());
+        doReturn(mockNetwork).when(mockNetwork).getPrivateDnsBypassingCopy();
+        ConnectivityManager mockCm = mock(ConnectivityManager.class);
+        Bundle config = new Bundle();
+
+        // The external thread that voluntarily silently close the socket.
+        CountDownLatch latch = new CountDownLatch(1);
+        final ExecutorService externalThread = Executors.newSingleThreadExecutor();
+        doAnswer(invok -> {
+            latch.countDown();
+            return null;
+        }).when(mockConnection).disconnect();
+
+        MmsHttpClient clientUT = new MmsHttpClient(mContext, mockNetwork, mockCm);
+        doAnswer(invok -> {
+            externalThread.execute(clientUT::disconnectAllUrlConnections);
+            // connection.disconnect is silent, but it will trigger SocketException thrown from the
+            // connect thread.
+            if (latch.await(1, TimeUnit.SECONDS)) {
+                throw new SocketException("Socket Closed");
+            }
+            return null;
+        }).when(mockConnection).getResponseCode();
+
+        // Verify SocketException is transformed into VoluntaryDisconnectMmsHttpException
+        assertThrows(VoluntaryDisconnectMmsHttpException.class, () -> {
+            clientUT.execute("http://test", new byte[0], "GET", false,
+                                "", 0, config, 1, "requestId");
+        });
     }
 }

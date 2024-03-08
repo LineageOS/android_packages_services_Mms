@@ -29,7 +29,9 @@ import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.mms.service.exception.MmsHttpException;
+import com.android.mms.service.exception.VoluntaryDisconnectMmsHttpException;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -49,10 +51,11 @@ import java.net.URL;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import com.android.internal.annotations.VisibleForTesting;
 
 /**
  * MMS HTTP client for sending and downloading MMS messages
@@ -86,6 +89,11 @@ public class MmsHttpClient {
     private final Context mContext;
     private final Network mNetwork;
     private final ConnectivityManager mConnectivityManager;
+
+    /** Store all currently open connections, for potential voluntarily early disconnect. */
+    private final Set<HttpURLConnection> mAllUrlConnections = ConcurrentHashMap.newKeySet();
+    /** Flag indicating whether a disconnection is voluntary. */
+    private final AtomicBoolean mVoluntarilyDisconnectingConnections = new AtomicBoolean(false);
 
     /**
      * Constructor
@@ -136,6 +144,7 @@ public class MmsHttpClient {
             maybeWaitForIpv4(requestId, url);
             // Now get the connection
             connection = (HttpURLConnection) mNetwork.openConnection(url, proxy);
+            if (connection != null) mAllUrlConnections.add(connection);
             connection.setDoInput(true);
             connection.setConnectTimeout(
                     mmsConfig.getInt(SmsManager.MMS_CONFIG_HTTP_SOCKET_TIMEOUT));
@@ -238,12 +247,43 @@ public class MmsHttpClient {
             LogUtil.e(requestId, "HTTP: invalid URL protocol " + redactedUrl, e);
             throw new MmsHttpException(0/*statusCode*/, "Invalid URL protocol " + redactedUrl, e);
         } catch (IOException e) {
-            LogUtil.e(requestId, "HTTP: IO failure", e);
-            throw new MmsHttpException(0/*statusCode*/, e);
+            if (mVoluntarilyDisconnectingConnections.get()) {
+                // If in the process of voluntarily disconnecting all connections, the exception
+                // is casted as VoluntaryDisconnectMmsHttpException to indicate this attempt is
+                // cancelled rather than failure.
+                LogUtil.d(requestId,
+                        "HTTP voluntarily disconnected due to WLAN network available");
+                throw new VoluntaryDisconnectMmsHttpException(0/*statusCode*/,
+                        "Expected disconnection due to WLAN network available");
+            } else {
+                LogUtil.e(requestId, "HTTP: IO failure ", e);
+                throw new MmsHttpException(0/*statusCode*/, e);
+            }
         } finally {
             if (connection != null) {
                 connection.disconnect();
+                mAllUrlConnections.remove(connection);
+                // If all connections are done disconnected, flag voluntary disconnection done if
+                // applicable.
+                if (mAllUrlConnections.isEmpty() && mVoluntarilyDisconnectingConnections
+                        .compareAndSet(/*expectedValue*/true, /*newValue*/false)) {
+                    LogUtil.d("All voluntarily disconnected connections are removed.");
+                }
             }
+        }
+    }
+
+    /**
+     * Voluntarily disconnect all Http URL connections. This will trigger
+     * {@link VoluntaryDisconnectMmsHttpException} to be thrown, to indicate voluntary disconnection
+     */
+    public void disconnectAllUrlConnections() {
+        LogUtil.d("Disconnecting all Url connections, size = " + mAllUrlConnections.size());
+        if (mAllUrlConnections.isEmpty()) return;
+        mVoluntarilyDisconnectingConnections.set(true);
+        for (HttpURLConnection connection : mAllUrlConnections) {
+            // TODO: An improvement is to check the writing/reading progress before disconnect.
+            connection.disconnect();
         }
     }
 
