@@ -63,6 +63,7 @@ public class MmsRequestRoboTest {
     private SmsManager mSmsManager;
     private Bundle mCarrierConfigValues;
     private static final int sMaxPduSize = 3 * 1000;
+    private static final int CALLING_USER = 10;
 
     @Before
     public void setUp() {
@@ -98,8 +99,8 @@ public class MmsRequestRoboTest {
     @Test
     public void sendRequest_noSatellite_sendSuccessful() {
         SendRequest request = new SendRequest(mMmsService, mSubId, Uri.parse(sFakeUri),
-                sFakeLocationUri, /* sentIntent= */ null, /* callingPkg= */ null,
-                mCarrierConfigValues, /* context= */ mMmsService,
+                sFakeLocationUri, /* sentIntent= */ null, /* callingUser= */ CALLING_USER,
+                /* callingPkg= */ null, mCarrierConfigValues, /* context= */ mMmsService,
                 sFakeMessageId, mMmsStats, mTelephonyManager);
         request.mPduData = new byte[sMaxPduSize + 100];
 
@@ -117,8 +118,8 @@ public class MmsRequestRoboTest {
         ss.addNetworkRegistrationInfo(nri);
         doReturn(ss).when(mTelephonyManager).getServiceState();
         SendRequest request = new SendRequest(mMmsService, mSubId, Uri.parse(sFakeUri),
-                sFakeLocationUri, /* sentIntent= */ null, /* callingPkg= */ null,
-                mCarrierConfigValues, /* context= */ mMmsService,
+                sFakeLocationUri, /* sentIntent= */ null, /* callingUser= */ CALLING_USER,
+                /* callingPkg= */ null, mCarrierConfigValues, /* context= */ mMmsService,
                 sFakeMessageId, mMmsStats, mTelephonyManager);
         request.mPduData = new byte[sMaxPduSize - 1];
 
@@ -136,8 +137,8 @@ public class MmsRequestRoboTest {
         ss.addNetworkRegistrationInfo(nri);
         doReturn(ss).when(mTelephonyManager).getServiceState();
         SendRequest request = new SendRequest(mMmsService, mSubId, Uri.parse(sFakeUri),
-                sFakeLocationUri, /* sentIntent= */ null, /* callingPkg= */ null,
-                mCarrierConfigValues, /* context= */ mMmsService,
+                sFakeLocationUri, /* sentIntent= */ null, /* callingUser= */ CALLING_USER,
+                /* callingPkg= */ null, mCarrierConfigValues, /* context= */ mMmsService,
                 sFakeMessageId, mMmsStats, mTelephonyManager);
         request.mPduData = new byte[sMaxPduSize + 1];
 
