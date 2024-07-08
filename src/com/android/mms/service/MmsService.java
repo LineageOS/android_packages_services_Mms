@@ -22,6 +22,7 @@ import static com.google.android.mms.pdu.PduHeaders.MESSAGE_TYPE_SEND_REQ;
 import android.annotation.Nullable;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.ContentProvider;
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.ContentValues;
@@ -187,9 +188,9 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
     private IMms.Stub mStub = new IMms.Stub() {
         @Override
-        public void sendMessage(int subId, String callingPkg, Uri contentUri,
-                String locationUrl, Bundle configOverrides, PendingIntent sentIntent,
-                long messageId) {
+        public void sendMessage(int subId, int callingUser, String callingPkg,
+                Uri contentUri, String locationUrl, Bundle configOverrides,
+                PendingIntent sentIntent, long messageId) {
             LogUtil.d("sendMessage " + formatCrossStackMessageId(messageId));
             enforceSystemUid();
 
@@ -210,8 +211,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             }
 
             final SendRequest request = new SendRequest(MmsService.this, subId, contentUri,
-                    locationUrl, sentIntent, callingPkg, configOverrides, MmsService.this,
-                    messageId);
+                    locationUrl, sentIntent, callingUser, callingPkg, configOverrides,
+                    MmsService.this, messageId);
 
             final String carrierMessagingServicePackage =
                     getCarrierMessagingServicePackageIfExists(subId);
@@ -231,7 +232,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 // ENABLE_MMS_DATA_REQUEST_REASON_OUTGOING_MMS is set for only SendReq case, since
                 // AcknowledgeInd and NotifyRespInd are parts of downloading sequence.
                 // TODO: Should consider ReadRecInd(Read Report)?
-                sendSettingsIntentForFailedMms(!isRawPduSendReq(contentUri), subId);
+                sendSettingsIntentForFailedMms(!isRawPduSendReq(contentUri, callingUser), subId);
                 sendErrorInPendingIntent(sentIntent);
                 return;
             }
@@ -240,8 +241,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         }
 
         @Override
-        public void downloadMessage(int subId, String callingPkg, String locationUrl,
-                Uri contentUri, Bundle configOverrides,
+        public void downloadMessage(int subId, int callingUser, String callingPkg,
+                String locationUrl, Uri contentUri, Bundle configOverrides,
                 PendingIntent downloadedIntent, long messageId) {
             // If the subId is no longer active it could be caused by an MVNO using multiple
             // subIds, so we should try to download anyway.
@@ -354,11 +355,12 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         }
 
         @Override
-        public Uri importMultimediaMessage(String callingPkg, Uri contentUri,
-                String messageId, long timestampSecs, boolean seen, boolean read) {
+        public Uri importMultimediaMessage(int callingUser, String callingPkg,
+                Uri contentUri, String messageId, long timestampSecs, boolean seen, boolean read) {
             LogUtil.d("importMultimediaMessage");
             enforceSystemUid();
-            return importMms(contentUri, messageId, timestampSecs, seen, read, callingPkg);
+            return importMms(contentUri, messageId, timestampSecs, seen,
+                read, callingUser, callingPkg);
         }
 
         @Override
@@ -448,11 +450,11 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         }
 
         @Override
-        public Uri addMultimediaMessageDraft(String callingPkg, Uri contentUri)
-                throws RemoteException {
+        public Uri addMultimediaMessageDraft(int callingUser,
+                String callingPkg, Uri contentUri) throws RemoteException {
             LogUtil.d("addMultimediaMessageDraft");
             enforceSystemUid();
-            return addMmsDraft(contentUri, callingPkg);
+            return addMmsDraft(contentUri, callingUser, callingPkg);
         }
 
         @Override
@@ -499,12 +501,12 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             }
         }
 
-        private boolean isRawPduSendReq(Uri contentUri) {
+        private boolean isRawPduSendReq(Uri contentUri, int callingUser) {
             // X-Mms-Message-Type is at the beginning of the message headers always. 1st byte is
             // MMS-filed-name and 2nd byte is MMS-value for X-Mms-Message-Type field.
             // See OMA-TS-MMS_ENC-V1_3-20110913-A, 7. Binary Encoding of ProtocolData Units
             byte[] pduData = new byte[2];
-            int bytesRead = readPduBytesFromContentUri(contentUri, pduData);
+            int bytesRead = readPduBytesFromContentUri(contentUri, pduData, callingUser);
 
             // Return true for MESSAGE_TYPE_SEND_REQ only. Otherwise false even wrong PDU case.
             if (bytesRead == 2
@@ -699,8 +701,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
     }
 
     private Uri importMms(Uri contentUri, String messageId, long timestampSecs,
-            boolean seen, boolean read, String creator) {
-        byte[] pduData = readPduFromContentUri(contentUri, MAX_MMS_FILE_SIZE);
+            boolean seen, boolean read, int callingUser, String creator) {
+        byte[] pduData = readPduFromContentUri(contentUri, MAX_MMS_FILE_SIZE, callingUser);
         if (pduData == null || pduData.length < 1) {
             LogUtil.e("importMessage: empty PDU");
             return null;
@@ -873,8 +875,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         return null;
     }
 
-    private Uri addMmsDraft(Uri contentUri, String creator) {
-        byte[] pduData = readPduFromContentUri(contentUri, MAX_MMS_FILE_SIZE);
+    private Uri addMmsDraft(Uri contentUri, int callingUser, String creator) {
+        byte[] pduData = readPduFromContentUri(contentUri, MAX_MMS_FILE_SIZE, callingUser);
         if (pduData == null || pduData.length < 1) {
             LogUtil.e("addMmsDraft: empty PDU");
             return null;
@@ -964,10 +966,11 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
      * @param maxSize    maximum number of bytes to read.
      * @return pdu bytes if succeeded else null.
      */
-    public byte[] readPduFromContentUri(final Uri contentUri, final int maxSize) {
+    public byte[] readPduFromContentUri(final Uri contentUri, final int maxSize,
+            int callingUser) {
         // Request one extra byte to make sure file not bigger than maxSize
         byte[] pduData = new byte[maxSize + 1];
-        int bytesRead = readPduBytesFromContentUri(contentUri, pduData);
+        int bytesRead = readPduBytesFromContentUri(contentUri, pduData, callingUser);
         if (bytesRead <= 0) {
             return null;
         }
@@ -985,9 +988,16 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
      * @param pduData    the buffer into which the data is read.
      * @return the total number of bytes read into the pduData.
      */
-    public int readPduBytesFromContentUri(final Uri contentUri, byte[] pduData) {
+    public int readPduBytesFromContentUri(final Uri contentUri, byte[] pduData,
+            int callingUser) {
         if (contentUri == null) {
             LogUtil.e("Uri is null");
+            return 0;
+        }
+        int contentUriUserID = ContentProvider.getUserIdFromUri(contentUri, UserHandle.myUserId());
+        if (callingUser != contentUriUserID) {
+            LogUtil.e("Uri belongs to a different user. contentUriUserId is: " + contentUriUserID
+                    + "and calling User ID is:" + callingUser);
             return 0;
         }
         Callable<Integer> copyPduToArray = new Callable<Integer>() {
