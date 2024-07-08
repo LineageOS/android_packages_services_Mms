@@ -19,6 +19,7 @@ package com.android.mms.service;
 import android.annotation.Nullable;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.ContentProvider;
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.ContentValues;
@@ -178,7 +179,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
     private IMms.Stub mStub = new IMms.Stub() {
         @Override
-        public void sendMessage(int subId, String callingPkg, Uri contentUri,
+        public void sendMessage(int subId, int callingUser, String callingPkg, Uri contentUri,
                 String locationUrl, Bundle configOverrides, PendingIntent sentIntent) {
             LogUtil.d("sendMessage");
             enforceSystemUid();
@@ -193,7 +194,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             }
 
             final SendRequest request = new SendRequest(MmsService.this, subId, contentUri,
-                    locationUrl, sentIntent, callingPkg, configOverrides, MmsService.this);
+                    locationUrl, sentIntent, callingUser, callingPkg, configOverrides, MmsService.this);
 
             final String carrierMessagingServicePackage =
                     getCarrierMessagingServicePackageIfExists(subId);
@@ -220,7 +221,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         }
 
         @Override
-        public void downloadMessage(int subId, String callingPkg, String locationUrl,
+        public void downloadMessage(int subId, int callingUser, String callingPkg, String locationUrl,
                 Uri contentUri, Bundle configOverrides,
                 PendingIntent downloadedIntent) {
             // If the subId is no longer active it could be caused by an MVNO using multiple
@@ -277,11 +278,12 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         }
 
         @Override
-        public Uri importMultimediaMessage(String callingPkg, Uri contentUri,
-                String messageId, long timestampSecs, boolean seen, boolean read) {
+        public Uri importMultimediaMessage(int callingUser, String callingPkg,
+                Uri contentUri, String messageId, long timestampSecs, boolean seen, boolean read) {
             LogUtil.d("importMultimediaMessage");
             enforceSystemUid();
-            return importMms(contentUri, messageId, timestampSecs, seen, read, callingPkg);
+            return importMms(contentUri, messageId, timestampSecs, seen,
+                read, callingUser, callingPkg);
         }
 
         @Override
@@ -367,11 +369,11 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         }
 
         @Override
-        public Uri addMultimediaMessageDraft(String callingPkg, Uri contentUri)
-                throws RemoteException {
+        public Uri addMultimediaMessageDraft(int callingUser,
+                String callingPkg, Uri contentUri) throws RemoteException {
             LogUtil.d("addMultimediaMessageDraft");
             enforceSystemUid();
-            return addMmsDraft(contentUri, callingPkg);
+            return addMmsDraft(contentUri, callingUser, callingPkg);
         }
 
         @Override
@@ -582,8 +584,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
     }
 
     private Uri importMms(Uri contentUri, String messageId, long timestampSecs,
-            boolean seen, boolean read, String creator) {
-        byte[] pduData = readPduFromContentUri(contentUri, MAX_MMS_FILE_SIZE);
+            boolean seen, boolean read, int callingUser, String creator) {
+        byte[] pduData = readPduFromContentUri(contentUri, MAX_MMS_FILE_SIZE, callingUser);
         if (pduData == null || pduData.length < 1) {
             LogUtil.e("importMessage: empty PDU");
             return null;
@@ -756,8 +758,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         return null;
     }
 
-    private Uri addMmsDraft(Uri contentUri, String creator) {
-        byte[] pduData = readPduFromContentUri(contentUri, MAX_MMS_FILE_SIZE);
+    private Uri addMmsDraft(Uri contentUri, int callingUser, String creator) {
+        byte[] pduData = readPduFromContentUri(contentUri, MAX_MMS_FILE_SIZE, callingUser);
         if (pduData == null || pduData.length < 1) {
             LogUtil.e("addMmsDraft: empty PDU");
             return null;
@@ -847,10 +849,19 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
      * @param maxSize    maximum number of bytes to read
      * @return pdu bytes if succeeded else null
      */
-    public byte[] readPduFromContentUri(final Uri contentUri, final int maxSize) {
+    public byte[] readPduFromContentUri(final Uri contentUri, final int maxSize,
+            int callingUser) {
+
         if (contentUri == null) {
             return null;
         }
+        int contentUriUserID = ContentProvider.getUserIdFromUri(contentUri, UserHandle.myUserId());
+        if (callingUser != contentUriUserID) {
+            LogUtil.e("Uri belongs to a different user. contentUriUserId is: " + contentUriUserID
+                    + "and calling User ID is:" + callingUser);
+            return null;
+        }
+
         Callable<byte[]> copyPduToArray = new Callable<byte[]>() {
             public byte[] call() {
                 ParcelFileDescriptor.AutoCloseInputStream inStream = null;
