@@ -356,8 +356,12 @@ public class DownloadRequest extends MmsRequest {
             mCarrierDownloadManager.disposeConnection(mContext);
 
             if (!maybeFallbackToRegularDelivery(result)) {
-                processResult(mContext, toSmsManagerResult(result), null/* response */,
-                        0/* httpStatusCode */, /* handledByCarrierApp= */ true);
+                processResult(
+                        mContext,
+                        toSmsManagerResultForInboundMms(result),
+                        null /* response */,
+                        0 /* httpStatusCode */,
+                        /* handledByCarrierApp= */ true);
             }
         }
     }

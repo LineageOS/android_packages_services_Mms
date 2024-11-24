@@ -493,8 +493,12 @@ public class SendRequest extends MmsRequest {
             mCarrierSendManager.disposeConnection(mContext);
 
             if (!maybeFallbackToRegularDelivery(result)) {
-                processResult(mContext, toSmsManagerResult(result), sendConfPdu,
-                        0/* httpStatusCode */, /* handledByCarrierApp= */ true);
+                processResult(
+                        mContext,
+                        toSmsManagerResultForOutboundMms(result),
+                        sendConfPdu,
+                        0 /* httpStatusCode */,
+                        /* handledByCarrierApp= */ true);
             }
         }
 
