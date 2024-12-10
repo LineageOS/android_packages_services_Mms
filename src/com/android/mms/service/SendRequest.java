@@ -61,16 +61,19 @@ public class SendRequest extends MmsRequest {
     public byte[] mPduData;
     private final String mLocationUrl;
     private final PendingIntent mSentIntent;
+    private final int mCallingUser;
 
     public SendRequest(RequestManager manager, int subId, Uri contentUri, String locationUrl,
-            PendingIntent sentIntent, String creator, Bundle configOverrides, Context context,
-            long messageId, MmsStats mmsStats, TelephonyManager telephonyManager) {
+            PendingIntent sentIntent, int callingUser, String creator,
+            Bundle configOverrides, Context context, long messageId, MmsStats mmsStats,
+            TelephonyManager telephonyManager) {
         super(manager, subId, creator, configOverrides, context, messageId, mmsStats,
                 telephonyManager);
         mPduUri = contentUri;
         mPduData = null;
         mLocationUrl = locationUrl;
         mSentIntent = sentIntent;
+        mCallingUser = callingUser;
     }
 
     @Override
@@ -368,7 +371,7 @@ public class SendRequest extends MmsRequest {
             return true;
         }
         final int bytesTobeRead = mMmsConfig.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE);
-        mPduData = mRequestManager.readPduFromContentUri(mPduUri, bytesTobeRead);
+        mPduData = mRequestManager.readPduFromContentUri(mPduUri, bytesTobeRead, mCallingUser);
         return (mPduData != null);
     }
 
