@@ -38,7 +38,6 @@ import android.telephony.TelephonyManager;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.PhoneConstants;
-import com.android.internal.telephony.flags.Flags;
 import com.android.mms.service.exception.MmsNetworkException;
 
 /**
@@ -250,8 +249,8 @@ public class MmsNetworkManager {
 
                 // New available network
                 if (mNetwork == null && isAvailable) {
-                    mIsSatelliteTransport = Flags.satelliteInternet()
-                            && nc.hasTransport(NetworkCapabilities.TRANSPORT_SATELLITE);
+                    mIsSatelliteTransport = nc.hasTransport(
+                            NetworkCapabilities.TRANSPORT_SATELLITE);
                     mNetwork = network;
                     MmsNetworkManager.this.notifyAll();
                 }
@@ -302,16 +301,14 @@ public class MmsNetworkManager {
 
         // With Satellite internet support, add satellite transport with restricted capability to
         // support mms over satellite network
-        if (Flags.satelliteInternet()) {
-            builder.removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED);
-            try {
-                // TODO: b/331622062 remove the try/catch
-                builder.addTransportType(NetworkCapabilities.TRANSPORT_SATELLITE);
-                builder.removeCapability(NetworkCapabilities
-                        .NET_CAPABILITY_NOT_BANDWIDTH_CONSTRAINED);
-            } catch (IllegalArgumentException exception) {
-                LogUtil.e("TRANSPORT_SATELLITE or NOT_BANDWIDTH_CONSTRAINED is not supported.");
-            }
+        builder.removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED);
+        try {
+            // TODO: b/331622062 remove the try/catch
+            builder.addTransportType(NetworkCapabilities.TRANSPORT_SATELLITE);
+            builder.removeCapability(NetworkCapabilities
+                    .NET_CAPABILITY_NOT_BANDWIDTH_CONSTRAINED);
+        } catch (IllegalArgumentException exception) {
+            LogUtil.e("TRANSPORT_SATELLITE or NOT_BANDWIDTH_CONSTRAINED is not supported.");
         }
         mNetworkRequest = builder.build();
 
