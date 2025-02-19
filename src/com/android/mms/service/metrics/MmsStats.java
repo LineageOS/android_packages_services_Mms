@@ -236,10 +236,6 @@ public class MmsStats {
 
     /** Determines whether device is non-terrestrial network or not. */
     private boolean isUsingNonTerrestrialNetwork() {
-        if (!Flags.carrierEnabledSatelliteFlag()) {
-            return false;
-        }
-
         ServiceState ss = mTelephonyManager.getServiceState();
         if (ss != null) {
             return ss.isUsingNonTerrestrialNetwork();
