@@ -240,8 +240,7 @@ public abstract class MmsRequest {
                     }
 
                     LogUtil.d(requestId, "Using APN " + apn);
-                    if (Flags.carrierEnabledSatelliteFlag()
-                            && networkManager.isSatelliteTransport()
+                    if (networkManager.isSatelliteTransport()
                             && !canTransferPayloadOnCurrentNetwork()) {
                         LogUtil.e(requestId, "PDU too large for satellite");
                         result = SmsManager.MMS_ERROR_TOO_LARGE_FOR_TRANSPORT;
