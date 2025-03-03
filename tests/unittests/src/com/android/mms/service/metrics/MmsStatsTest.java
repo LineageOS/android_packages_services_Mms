@@ -229,10 +229,6 @@ public class MmsStatsTest {
 
     @Test
     public void testIsNtn_serviceState_notNull() {
-        if (!Flags.carrierEnabledSatelliteFlag()) {
-            return;
-        }
-
         ServiceState serviceState = mock(ServiceState.class);
         doReturn(serviceState).when(mTelephonyManager).getServiceState();
         doReturn(true).when(serviceState).isUsingNonTerrestrialNetwork();
@@ -262,10 +258,6 @@ public class MmsStatsTest {
 
     @Test
     public void testIsNtn_serviceState_Null() {
-        if (!Flags.carrierEnabledSatelliteFlag()) {
-            return;
-        }
-
         doReturn(null).when(mTelephonyManager).getServiceState();
 
         MmsStats mmsStats = new MmsStats(mContext, mPersistMmsAtomsStorage, 1,
