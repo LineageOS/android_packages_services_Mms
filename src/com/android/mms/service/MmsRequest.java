@@ -691,6 +691,6 @@ public abstract class MmsRequest {
                 .getInt(CarrierConfigManager.KEY_MMS_MAX_NTN_PAYLOAD_SIZE_BYTES_INT);
         LogUtil.d("canTransferPayloadOnCurrentNetwork payloadSize: " + payloadSize
                 + " maxPduSize: " + maxPduSize);
-        return payloadSize > 0 && payloadSize <= maxPduSize;
+        return payloadSize > 0 && (maxPduSize == -1 || payloadSize <= maxPduSize);
     }
 }
