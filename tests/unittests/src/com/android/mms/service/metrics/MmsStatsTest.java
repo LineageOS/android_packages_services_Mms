@@ -17,6 +17,8 @@
 package com.android.mms.service.metrics;
 
 import static com.android.mms.MmsStatsLog.INCOMING_MMS__RESULT__MMS_RESULT_SUCCESS;
+import static com.android.mms.MmsStatsLog.OUTGOING_MMS__RESULT__MMS_RESULT_ERROR_NO_DATA_NETWORK;
+import static com.android.mms.MmsStatsLog.OUTGOING_MMS__RESULT__MMS_RESULT_ERROR_UNSPECIFIED;
 import static com.android.mms.MmsStatsLog.OUTGOING_MMS__RESULT__MMS_RESULT_SUCCESS;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -32,6 +34,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import android.app.Activity;
 import android.content.Context;
 import android.telephony.ServiceState;
+import android.telephony.SmsManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 
@@ -97,18 +100,24 @@ public class MmsStatsTest {
         verifyNoMoreInteractions(mPersistMmsAtomsStorage);
     }
 
-    @Test
-    public void addAtomToStorage_outgoingMms_default() {
+    private OutgoingMms addAtomToStorage_outgoingMms(
+            int result, int retryId, boolean handledByCarrierApp, long mMessageId) {
         doReturn(null).when(mTelephonyManager).getServiceState();
         doReturn(TelephonyManager.UNKNOWN_CARRIER_ID).when(mTelephonyManager).getSimCarrierId();
         int inactiveSubId = 123;
         MmsStats mmsStats = new MmsStats(mContext, mPersistMmsAtomsStorage, inactiveSubId,
                 mTelephonyManager, null, false);
-        mmsStats.addAtomToStorage(Activity.RESULT_OK);
+        mmsStats.addAtomToStorage(result, retryId, handledByCarrierApp, mMessageId);
 
         ArgumentCaptor<OutgoingMms> outgoingMmsCaptor = ArgumentCaptor.forClass(OutgoingMms.class);
         verify(mPersistMmsAtomsStorage).addOutgoingMms(outgoingMmsCaptor.capture());
-        OutgoingMms outgoingMms = outgoingMmsCaptor.getValue();
+        verifyNoMoreInteractions(mPersistMmsAtomsStorage);
+        return outgoingMmsCaptor.getValue();
+    }
+
+    @Test
+    public void addAtomToStorage_outgoingMms_default() {
+        OutgoingMms outgoingMms = addAtomToStorage_outgoingMms(Activity.RESULT_OK, 0, false, 0);
         assertThat(outgoingMms.getRat()).isEqualTo(TelephonyManager.NETWORK_TYPE_UNKNOWN);
         assertThat(outgoingMms.getResult()).isEqualTo(OUTGOING_MMS__RESULT__MMS_RESULT_SUCCESS);
         assertThat(outgoingMms.getRoaming()).isEqualTo(ServiceState.ROAMING_TYPE_NOT_ROAMING);
@@ -123,7 +132,70 @@ public class MmsStatsTest {
         assertThat(outgoingMms.getIsFromDefaultApp()).isEqualTo(false);
         assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
         assertThat(outgoingMms.getIsNtn()).isEqualTo(false);
-        verifyNoMoreInteractions(mPersistMmsAtomsStorage);
+    }
+
+    @Test
+    public void addAtomToStorage_outgoingMms_handledByCarrierApp_Succeeded() {
+        OutgoingMms outgoingMms = addAtomToStorage_outgoingMms(Activity.RESULT_OK, 0, true, 0);
+        assertThat(outgoingMms.getRat()).isEqualTo(TelephonyManager.NETWORK_TYPE_UNKNOWN);
+        assertThat(outgoingMms.getResult()).isEqualTo(OUTGOING_MMS__RESULT__MMS_RESULT_SUCCESS);
+        assertThat(outgoingMms.getRoaming()).isEqualTo(ServiceState.ROAMING_TYPE_NOT_ROAMING);
+        assertThat(outgoingMms.getSimSlotIndex())
+                .isEqualTo(SubscriptionManager.INVALID_SIM_SLOT_INDEX);
+        assertThat(outgoingMms.getIsMultiSim()).isEqualTo(false);
+        assertThat(outgoingMms.getIsEsim()).isEqualTo(false);
+        assertThat(outgoingMms.getCarrierId()).isEqualTo(TelephonyManager.UNKNOWN_CARRIER_ID);
+        assertThat(outgoingMms.getMmsCount()).isEqualTo(1);
+        assertThat(outgoingMms.getRetryId()).isEqualTo(0);
+        assertThat(outgoingMms.getHandledByCarrierApp()).isEqualTo(true);
+        assertThat(outgoingMms.getIsFromDefaultApp()).isEqualTo(false);
+        assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
+        assertThat(outgoingMms.getIsNtn()).isEqualTo(false);
+    }
+
+    @Test
+    public void addAtomToStorage_outgoingMms_handledByCarrierApp_FailedWithoutReason() {
+        OutgoingMms outgoingMms =
+                addAtomToStorage_outgoingMms(SmsManager.MMS_ERROR_UNSPECIFIED, 0, true, 0);
+        assertThat(outgoingMms.getRat()).isEqualTo(TelephonyManager.NETWORK_TYPE_UNKNOWN);
+        assertThat(outgoingMms.getResult())
+                .isEqualTo(OUTGOING_MMS__RESULT__MMS_RESULT_ERROR_UNSPECIFIED);
+        assertThat(outgoingMms.getRoaming()).isEqualTo(ServiceState.ROAMING_TYPE_NOT_ROAMING);
+        assertThat(outgoingMms.getSimSlotIndex())
+                .isEqualTo(SubscriptionManager.INVALID_SIM_SLOT_INDEX);
+        assertThat(outgoingMms.getIsMultiSim()).isEqualTo(false);
+        assertThat(outgoingMms.getIsEsim()).isEqualTo(false);
+        assertThat(outgoingMms.getCarrierId()).isEqualTo(TelephonyManager.UNKNOWN_CARRIER_ID);
+        assertThat(outgoingMms.getMmsCount()).isEqualTo(1);
+        assertThat(outgoingMms.getRetryId()).isEqualTo(0);
+        assertThat(outgoingMms.getHandledByCarrierApp()).isEqualTo(true);
+        assertThat(outgoingMms.getIsFromDefaultApp()).isEqualTo(false);
+        assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
+        assertThat(outgoingMms.getIsNtn()).isEqualTo(false);
+    }
+
+    @Test
+    public void addAtomToStorage_outgoingMms_handledByCarrierApp_FailedWithReason() {
+        if (!Flags.temporaryFailuresInCarrierMessagingService()) {
+            return;
+        }
+        OutgoingMms outgoingMms =
+                addAtomToStorage_outgoingMms(SmsManager.MMS_ERROR_NO_DATA_NETWORK, 0, true, 0);
+        assertThat(outgoingMms.getRat()).isEqualTo(TelephonyManager.NETWORK_TYPE_UNKNOWN);
+        assertThat(outgoingMms.getResult())
+                .isEqualTo(OUTGOING_MMS__RESULT__MMS_RESULT_ERROR_NO_DATA_NETWORK);
+        assertThat(outgoingMms.getRoaming()).isEqualTo(ServiceState.ROAMING_TYPE_NOT_ROAMING);
+        assertThat(outgoingMms.getSimSlotIndex())
+                .isEqualTo(SubscriptionManager.INVALID_SIM_SLOT_INDEX);
+        assertThat(outgoingMms.getIsMultiSim()).isEqualTo(false);
+        assertThat(outgoingMms.getIsEsim()).isEqualTo(false);
+        assertThat(outgoingMms.getCarrierId()).isEqualTo(TelephonyManager.UNKNOWN_CARRIER_ID);
+        assertThat(outgoingMms.getMmsCount()).isEqualTo(1);
+        assertThat(outgoingMms.getRetryId()).isEqualTo(0);
+        assertThat(outgoingMms.getHandledByCarrierApp()).isEqualTo(true);
+        assertThat(outgoingMms.getIsFromDefaultApp()).isEqualTo(false);
+        assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
+        assertThat(outgoingMms.getIsNtn()).isEqualTo(false);
     }
 
     @Test
