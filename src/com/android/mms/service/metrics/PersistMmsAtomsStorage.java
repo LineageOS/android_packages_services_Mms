@@ -22,6 +22,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
+
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
@@ -313,7 +314,9 @@ public class PersistMmsAtomsStorage {
                     && mms.getIsEsim() == key.getIsEsim()
                     && mms.getCarrierId() == key.getCarrierId()
                     && mms.getRetryId() == key.getRetryId()
-                    && mms.getHandledByCarrierApp() == key.getHandledByCarrierApp()) {
+                    && mms.getHandledByCarrierApp() == key.getHandledByCarrierApp()
+                    && mms.getIsNtn() == key.getIsNtn()
+                    && mms.getIsNbIotNtn() == key.getIsNbIotNtn()) {
                 return i;
             }
         }
@@ -336,7 +339,9 @@ public class PersistMmsAtomsStorage {
                     && mms.getCarrierId() == key.getCarrierId()
                     && mms.getIsFromDefaultApp() == key.getIsFromDefaultApp()
                     && mms.getRetryId() == key.getRetryId()
-                    && mms.getHandledByCarrierApp() == key.getHandledByCarrierApp()) {
+                    && mms.getHandledByCarrierApp() == key.getHandledByCarrierApp()
+                    && mms.getIsNtn() == key.getIsNtn()
+                    && mms.getIsNbIotNtn() == key.getIsNbIotNtn()) {
                 return i;
             }
         }
