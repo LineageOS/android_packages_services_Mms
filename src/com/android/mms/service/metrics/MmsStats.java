@@ -35,8 +35,12 @@ import android.telephony.TelephonyManager;
 import android.telephony.UiccCardInfo;
 import android.util.Log;
 
+import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneFactory;
 import com.android.internal.telephony.SmsApplication;
 import com.android.internal.telephony.flags.Flags;
+import com.android.internal.telephony.satellite.SatelliteController;
 import com.android.internal.telephony.satellite.metrics.CarrierRoamingSatelliteSessionStats;
 import com.android.mms.IncomingMms;
 import com.android.mms.OutgoingMms;
@@ -113,6 +117,7 @@ public class MmsStats {
                 .setHandledByCarrierApp(handledByCarrierApp)
                 .setIsManagedProfile(isManagedProfile())
                 .setIsNtn(isUsingNonTerrestrialNetwork())
+                .setIsNbIotNtn(isNbIotNtn(mSubId))
                 .build();
         mPersistMmsAtomsStorage.addIncomingMms(incomingMms);
     }
@@ -134,6 +139,7 @@ public class MmsStats {
                 .setHandledByCarrierApp(handledByCarrierApp)
                 .setIsManagedProfile(isManagedProfile())
                 .setIsNtn(isUsingNonTerrestrialNetwork())
+                .setIsNbIotNtn(isNbIotNtn(mSubId))
                 .build();
         mPersistMmsAtomsStorage.addOutgoingMms(outgoingMms);
     }
@@ -243,6 +249,24 @@ public class MmsStats {
             Log.e(TAG, "isUsingNonTerrestrialNetwork(): ServiceState is null");
         }
         return false;
+    }
+
+    /** Determines whether the subscription is in carrier roaming NB-IoT NTN or not. */
+    @VisibleForTesting(visibility = VisibleForTesting.Visibility.PRIVATE)
+    public boolean isNbIotNtn(int subId) {
+        Phone phone = PhoneFactory.getPhone(SubscriptionManager.getPhoneId(subId));
+        if (phone == null) {
+            Log.e(TAG, "isNbIotNtn(): phone is null");
+            return false;
+        }
+
+        SatelliteController satelliteController = SatelliteController.getInstance();
+        if (satelliteController == null) {
+            Log.e(TAG, "isNbIotNtn(): satelliteController is null");
+            return false;
+        }
+
+        return satelliteController.isInCarrierRoamingNbIotNtn(phone);
     }
 
     /**
