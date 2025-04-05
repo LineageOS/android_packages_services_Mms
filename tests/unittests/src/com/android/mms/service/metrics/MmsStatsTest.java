@@ -107,7 +107,7 @@ public class MmsStatsTest {
     }
 
     private OutgoingMms addAtomToStorage_outgoingMms(
-            int result, int retryId, boolean handledByCarrierApp, long mMessageId) {
+            int result, int retryId, boolean handledByCarrierApp, long mMessageId, int pduLength) {
         doReturn(null).when(mTelephonyManager).getServiceState();
         doReturn(TelephonyManager.UNKNOWN_CARRIER_ID).when(mTelephonyManager).getSimCarrierId();
         int inactiveSubId = 123;
@@ -115,7 +115,7 @@ public class MmsStatsTest {
                 mTelephonyManager, null, false);
         mSpyMmsStats = Mockito.spy(mmsStats);
         doReturn(false).when(mSpyMmsStats).isNbIotNtn(inactiveSubId);
-        mSpyMmsStats.addAtomToStorage(result, retryId, handledByCarrierApp, mMessageId);
+        mSpyMmsStats.addAtomToStorage(result, retryId, handledByCarrierApp, mMessageId, pduLength);
 
         ArgumentCaptor<OutgoingMms> outgoingMmsCaptor = ArgumentCaptor.forClass(OutgoingMms.class);
         verify(mPersistMmsAtomsStorage).addOutgoingMms(outgoingMmsCaptor.capture());
@@ -125,7 +125,7 @@ public class MmsStatsTest {
 
     @Test
     public void addAtomToStorage_outgoingMms_default() {
-        OutgoingMms outgoingMms = addAtomToStorage_outgoingMms(Activity.RESULT_OK, 0, false, 0);
+        OutgoingMms outgoingMms = addAtomToStorage_outgoingMms(Activity.RESULT_OK, 0, false, 0, 10);
         assertThat(outgoingMms.getRat()).isEqualTo(TelephonyManager.NETWORK_TYPE_UNKNOWN);
         assertThat(outgoingMms.getResult()).isEqualTo(OUTGOING_MMS__RESULT__MMS_RESULT_SUCCESS);
         assertThat(outgoingMms.getRoaming()).isEqualTo(ServiceState.ROAMING_TYPE_NOT_ROAMING);
@@ -141,11 +141,12 @@ public class MmsStatsTest {
         assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
         assertThat(outgoingMms.getIsNtn()).isEqualTo(false);
         assertThat(outgoingMms.getIsNbIotNtn()).isEqualTo(false);
+        assertThat(outgoingMms.getPduLength()).isEqualTo(10);
     }
 
     @Test
     public void addAtomToStorage_outgoingMms_handledByCarrierApp_Succeeded() {
-        OutgoingMms outgoingMms = addAtomToStorage_outgoingMms(Activity.RESULT_OK, 0, true, 0);
+        OutgoingMms outgoingMms = addAtomToStorage_outgoingMms(Activity.RESULT_OK, 0, true, 0, 0);
         assertThat(outgoingMms.getRat()).isEqualTo(TelephonyManager.NETWORK_TYPE_UNKNOWN);
         assertThat(outgoingMms.getResult()).isEqualTo(OUTGOING_MMS__RESULT__MMS_RESULT_SUCCESS);
         assertThat(outgoingMms.getRoaming()).isEqualTo(ServiceState.ROAMING_TYPE_NOT_ROAMING);
@@ -161,12 +162,13 @@ public class MmsStatsTest {
         assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
         assertThat(outgoingMms.getIsNtn()).isEqualTo(false);
         assertThat(outgoingMms.getIsNbIotNtn()).isEqualTo(false);
+        assertThat(outgoingMms.getPduLength()).isEqualTo(0);
     }
 
     @Test
     public void addAtomToStorage_outgoingMms_handledByCarrierApp_FailedWithoutReason() {
         OutgoingMms outgoingMms =
-                addAtomToStorage_outgoingMms(SmsManager.MMS_ERROR_UNSPECIFIED, 0, true, 0);
+                addAtomToStorage_outgoingMms(SmsManager.MMS_ERROR_UNSPECIFIED, 0, true, 0, 10);
         assertThat(outgoingMms.getRat()).isEqualTo(TelephonyManager.NETWORK_TYPE_UNKNOWN);
         assertThat(outgoingMms.getResult())
                 .isEqualTo(OUTGOING_MMS__RESULT__MMS_RESULT_ERROR_UNSPECIFIED);
@@ -183,6 +185,7 @@ public class MmsStatsTest {
         assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
         assertThat(outgoingMms.getIsNtn()).isEqualTo(false);
         assertThat(outgoingMms.getIsNbIotNtn()).isEqualTo(false);
+        assertThat(outgoingMms.getPduLength()).isEqualTo(10);
     }
 
     @Test
@@ -191,7 +194,7 @@ public class MmsStatsTest {
             return;
         }
         OutgoingMms outgoingMms =
-                addAtomToStorage_outgoingMms(SmsManager.MMS_ERROR_NO_DATA_NETWORK, 0, true, 0);
+                addAtomToStorage_outgoingMms(SmsManager.MMS_ERROR_NO_DATA_NETWORK, 0, true, 0, 0);
         assertThat(outgoingMms.getRat()).isEqualTo(TelephonyManager.NETWORK_TYPE_UNKNOWN);
         assertThat(outgoingMms.getResult())
                 .isEqualTo(OUTGOING_MMS__RESULT__MMS_RESULT_ERROR_NO_DATA_NETWORK);
@@ -208,6 +211,7 @@ public class MmsStatsTest {
         assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
         assertThat(outgoingMms.getIsNtn()).isEqualTo(false);
         assertThat(outgoingMms.getIsNbIotNtn()).isEqualTo(false);
+        assertThat(outgoingMms.getPduLength()).isEqualTo(0);
     }
 
     @Test
