@@ -71,4 +71,5 @@ message OutgoingMms {
   optional bool is_managed_profile = 13;
   optional bool is_ntn = 14;
   optional bool is_nb_iot_ntn = 15;
+  optional int32 pdu_length = 16;
 }

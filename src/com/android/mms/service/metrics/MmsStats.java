@@ -78,18 +78,18 @@ public class MmsStats {
 
     /** Adds incoming or outgoing mms atom to storage. */
     public void addAtomToStorage(int result) {
-        addAtomToStorage(result, 0, false, 0);
+        addAtomToStorage(result, 0, false, 0, 0);
     }
 
     /** Adds incoming or outgoing mms atom to storage. */
     public void addAtomToStorage(int result, int retryId, boolean handledByCarrierApp,
-            long mMessageId) {
+            long mMessageId, int pduLength) {
         long identity = Binder.clearCallingIdentity();
         try {
             if (mIsIncomingMms) {
                 onIncomingMms(result, retryId, handledByCarrierApp);
             } else {
-                onOutgoingMms(result, retryId, handledByCarrierApp);
+                onOutgoingMms(result, retryId, handledByCarrierApp, pduLength);
             }
             if (isUsingNonTerrestrialNetwork()) {
                 CarrierRoamingSatelliteSessionStats carrierRoamingSatelliteSessionStats =
@@ -123,7 +123,8 @@ public class MmsStats {
     }
 
     /** Creates a new atom when MMS is sent. */
-    private void onOutgoingMms(int result, int retryId, boolean handledByCarrierApp) {
+    private void onOutgoingMms(int result, int retryId, boolean handledByCarrierApp,
+            int pduLength) {
         OutgoingMms outgoingMms = OutgoingMms.newBuilder()
                 .setRat(getDataNetworkType())
                 .setResult(getOutgoingMmsResult(result))
@@ -140,6 +141,7 @@ public class MmsStats {
                 .setIsManagedProfile(isManagedProfile())
                 .setIsNtn(isUsingNonTerrestrialNetwork())
                 .setIsNbIotNtn(isNbIotNtn(mSubId))
+                .setPduLength(pduLength)
                 .build();
         mPersistMmsAtomsStorage.addOutgoingMms(outgoingMms);
     }
