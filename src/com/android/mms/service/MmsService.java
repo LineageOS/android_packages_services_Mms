@@ -42,7 +42,6 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.provider.Telephony;
-import android.security.NetworkSecurityPolicy;
 import android.service.carrier.CarrierMessagingService;
 import android.telephony.AnomalyReporter;
 import android.telephony.SmsManager;
@@ -741,8 +740,6 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         LogUtil.d("onCreate");
         // Load mms_config
         MmsConfigManager.getInstance().init(this);
-
-        NetworkSecurityPolicy.getInstance().setCleartextTrafficPermitted(true);
 
         // Registers statsd pullers
         mMmsMetricsCollector = new MmsMetricsCollector(this);
