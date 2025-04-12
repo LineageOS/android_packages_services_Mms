@@ -150,10 +150,8 @@ public abstract class MmsRequest {
                 if ((apnSetting.getApnTypeBitmask() & ApnSetting.TYPE_MMS) != 0) {
                     LogUtil.d("onPreciseDataConnectionStateChanged: " + connectionState);
                     mLastConnectionFailure = connectionState.getLastCauseCode();
-                    if (Flags.mmsGetApnFromPdsc()) {
-                        synchronized (mLock) {
-                            mNetworkIdToApn.put(connectionState.getNetId(), apnSetting);
-                        }
+                    synchronized (mLock) {
+                        mNetworkIdToApn.put(connectionState.getNetId(), apnSetting);
                     }
                 }
             }
@@ -209,13 +207,11 @@ public abstract class MmsRequest {
                     currentState = MmsRequestState.LoadingApn;
                     ApnSettings apn = null;
                     ApnSetting networkApn = null;
-                    if (Flags.mmsGetApnFromPdsc()) {
-                        synchronized (connectionStateCallback.mLock) {
-                            networkApn = connectionStateCallback.mNetworkIdToApn.get(networkId);
-                        }
-                        if (networkApn != null) {
-                            apn = ApnSettings.getApnSettingsFromNetworkApn(networkApn);
-                        }
+                    synchronized (connectionStateCallback.mLock) {
+                        networkApn = connectionStateCallback.mNetworkIdToApn.get(networkId);
+                    }
+                    if (networkApn != null) {
+                        apn = ApnSettings.getApnSettingsFromNetworkApn(networkApn);
                     }
                     if (apn == null) {
                         final String apnName = networkManager.getApnName();
@@ -232,11 +228,6 @@ public abstract class MmsRequest {
                                     + apnName + ", try with no name");
                             apn = ApnSettings.load(context, null, mSubId, requestId);
                         }
-                    }
-
-                    if (Flags.mmsGetApnFromPdsc() && networkApn == null && apn != null) {
-                        reportAnomaly("Can't find MMS APN in mms network",
-                                UUID.fromString("2bdda74d-3cf4-44ad-a87f-24c961212a6f"));
                     }
 
                     LogUtil.d(requestId, "Using APN " + apn);
