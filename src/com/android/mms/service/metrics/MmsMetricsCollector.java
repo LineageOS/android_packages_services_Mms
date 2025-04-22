@@ -114,7 +114,9 @@ public class MmsMetricsCollector implements StatsManager.StatsPullAtomCallback {
                 mms.getIsManagedProfile(),
                 mms.getIsNtn(),
                 mms.getIsNbIotNtn(),
-                mms.getPduLength());
+                mms.getPduLength(),
+                mms.getCallingPackageName(),
+                mms.getAppUid());
     }
 
     @Override

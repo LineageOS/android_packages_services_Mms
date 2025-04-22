@@ -21,6 +21,7 @@ import static com.android.mms.MmsStatsLog.INCOMING_MMS__RESULT__MMS_RESULT_SUCCE
 import static com.android.mms.MmsStatsLog.OUTGOING_MMS__RESULT__MMS_RESULT_ERROR_UNSPECIFIED;
 import static com.android.mms.MmsStatsLog.OUTGOING_MMS__RESULT__MMS_RESULT_SUCCESS;
 
+import android.annotation.NonNull;
 import android.app.Activity;
 import android.content.Context;
 import android.os.Binder;
@@ -58,16 +59,21 @@ public class MmsStats {
     private final long mTimestamp;
     private int mSubId;
     private TelephonyManager mTelephonyManager;
+    private SatelliteController mSatelliteController;
+    private final int mAppUid;
 
     public MmsStats(Context context, PersistMmsAtomsStorage persistMmsAtomsStorage, int subId,
-            TelephonyManager telephonyManager, String callingPkg, boolean isIncomingMms) {
+            TelephonyManager telephonyManager, String callingPkg, boolean isIncomingMms,
+            int appUid) {
         mContext = context;
         mPersistMmsAtomsStorage = persistMmsAtomsStorage;
         mSubId = subId;
         mTelephonyManager = telephonyManager;
+        mSatelliteController = SatelliteController.getInstance();
         mCallingPkg = callingPkg;
         mIsIncomingMms = isIncomingMms;
         mTimestamp = SystemClock.elapsedRealtime();
+        mAppUid = appUid;
     }
 
     /** Updates subId and corresponding telephonyManager. */
@@ -84,6 +90,7 @@ public class MmsStats {
     /** Adds incoming or outgoing mms atom to storage. */
     public void addAtomToStorage(int result, int retryId, boolean handledByCarrierApp,
             long mMessageId, int pduLength) {
+
         long identity = Binder.clearCallingIdentity();
         try {
             if (mIsIncomingMms) {
@@ -91,7 +98,7 @@ public class MmsStats {
             } else {
                 onOutgoingMms(result, retryId, handledByCarrierApp, pduLength);
             }
-            if (isUsingNonTerrestrialNetwork()) {
+            if (isInSatelliteModeForCarrierRoaming(mSubId)) {
                 CarrierRoamingSatelliteSessionStats carrierRoamingSatelliteSessionStats =
                         CarrierRoamingSatelliteSessionStats.getInstance(mSubId);
                 carrierRoamingSatelliteSessionStats.onMms(mIsIncomingMms, mMessageId);
@@ -117,7 +124,7 @@ public class MmsStats {
                 .setRetryId(retryId)
                 .setHandledByCarrierApp(handledByCarrierApp)
                 .setIsManagedProfile(isManagedProfile())
-                .setIsNtn(isUsingNonTerrestrialNetwork())
+                .setIsNtn(isInSatelliteModeForCarrierRoaming(mSubId))
                 .setIsNbIotNtn(isNbIotNtn(mSubId))
                 .setPduLength(pduLength)
                 .build();
@@ -141,9 +148,11 @@ public class MmsStats {
                 .setRetryId(retryId)
                 .setHandledByCarrierApp(handledByCarrierApp)
                 .setIsManagedProfile(isManagedProfile())
-                .setIsNtn(isUsingNonTerrestrialNetwork())
+                .setIsNtn(isInSatelliteModeForCarrierRoaming(mSubId))
                 .setIsNbIotNtn(isNbIotNtn(mSubId))
                 .setPduLength(pduLength)
+                .setCallingPackageName(getSanitizedCallingPackageName())
+                .setAppUid(mAppUid)
                 .build();
         mPersistMmsAtomsStorage.addOutgoingMms(outgoingMms);
     }
@@ -235,7 +244,8 @@ public class MmsStats {
     }
 
     /** Returns if the MMS was originated from the default MMS application. */
-    private boolean isDefaultMmsApp() {
+    @VisibleForTesting(visibility = VisibleForTesting.Visibility.PRIVATE)
+    protected boolean isDefaultMmsApp() {
         UserHandle userHandle = null;
         SubscriptionManager subManager = mContext.getSystemService(SubscriptionManager.class);
         if ((subManager != null) && (subManager.isActiveSubscriptionId(mSubId))) {
@@ -244,20 +254,9 @@ public class MmsStats {
         return SmsApplication.isDefaultMmsApplicationAsUser(mContext, mCallingPkg, userHandle);
     }
 
-    /** Determines whether device is non-terrestrial network or not. */
-    private boolean isUsingNonTerrestrialNetwork() {
-        ServiceState ss = mTelephonyManager.getServiceState();
-        if (ss != null) {
-            return ss.isUsingNonTerrestrialNetwork();
-        } else {
-            Log.e(TAG, "isUsingNonTerrestrialNetwork(): ServiceState is null");
-        }
-        return false;
-    }
-
     /** Determines whether the subscription is in carrier roaming NB-IoT NTN or not. */
     @VisibleForTesting(visibility = VisibleForTesting.Visibility.PRIVATE)
-    public boolean isNbIotNtn(int subId) {
+    protected boolean isNbIotNtn(int subId) {
         Phone phone = PhoneFactory.getPhone(SubscriptionManager.getPhoneId(subId));
         if (phone == null) {
             Log.e(TAG, "isNbIotNtn(): phone is null");
@@ -280,5 +279,21 @@ public class MmsStats {
      */
     private long getInterval() {
         return (SystemClock.elapsedRealtime() - mTimestamp);
+    }
+
+    @NonNull
+    private String getSanitizedCallingPackageName() {
+        return (isInSatelliteModeForCarrierRoaming(mSubId) && mCallingPkg != null) ? mCallingPkg
+                : "";
+    }
+
+    /** Determines whether the subscription is in carrier roaming satellite mode or not. */
+    @VisibleForTesting(visibility = VisibleForTesting.Visibility.PRIVATE)
+    protected boolean isInSatelliteModeForCarrierRoaming(int subId) {
+        if (mSatelliteController == null) {
+            return false;
+        }
+        return mSatelliteController.isInSatelliteModeForCarrierRoaming(
+                PhoneFactory.getPhone(SubscriptionManager.getPhoneId(subId)));
     }
 }

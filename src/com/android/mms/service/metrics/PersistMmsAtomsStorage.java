@@ -342,7 +342,8 @@ public class PersistMmsAtomsStorage {
                     && mms.getHandledByCarrierApp() == key.getHandledByCarrierApp()
                     && mms.getIsNtn() == key.getIsNtn()
                     && mms.getIsNbIotNtn() == key.getIsNbIotNtn()
-                    && mms.getPduLength() == key.getPduLength()) {
+                    && mms.getPduLength() == key.getPduLength()
+                    && mms.getCallingPackageName().equals(key.getCallingPackageName())) {
                 return i;
             }
         }
