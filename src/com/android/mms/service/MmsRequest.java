@@ -349,7 +349,7 @@ public abstract class MmsRequest {
                 reportPossibleAnomaly(result, httpStatusCode);
                 pendingIntent.send(context, result, fillIn);
                 mMmsStats.addAtomToStorage(result, retryId, handledByCarrierApp, mMessageId,
-                        (int) this.getPayloadSize());
+                        getPduLength(result, response));
             } catch (PendingIntent.CanceledException e) {
                 LogUtil.e(requestId, "Sending pending intent canceled", e);
             }
@@ -444,6 +444,15 @@ public abstract class MmsRequest {
             return false;
         }
     }
+
+    /**
+     * Calculates the PDU length for MMS based on the request type.
+     *
+     * @param result Operation result code.
+     * @param response Received PDU bytes (for download).
+     * @return PDU length.
+     */
+    protected abstract int getPduLength(int result, byte[] response);
 
     /**
      * Returns true if sending / downloading using the carrier app has failed and completes the
