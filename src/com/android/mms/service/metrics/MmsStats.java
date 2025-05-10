@@ -87,7 +87,7 @@ public class MmsStats {
         long identity = Binder.clearCallingIdentity();
         try {
             if (mIsIncomingMms) {
-                onIncomingMms(result, retryId, handledByCarrierApp);
+                onIncomingMms(result, retryId, handledByCarrierApp, pduLength);
             } else {
                 onOutgoingMms(result, retryId, handledByCarrierApp, pduLength);
             }
@@ -102,7 +102,8 @@ public class MmsStats {
     }
 
     /** Creates a new atom when MMS is received. */
-    private void onIncomingMms(int result, int retryId, boolean handledByCarrierApp) {
+    private void onIncomingMms(int result, int retryId, boolean handledByCarrierApp,
+            int pduLength) {
         IncomingMms incomingMms = IncomingMms.newBuilder()
                 .setRat(getDataNetworkType())
                 .setResult(getIncomingMmsResult(result))
@@ -118,6 +119,7 @@ public class MmsStats {
                 .setIsManagedProfile(isManagedProfile())
                 .setIsNtn(isUsingNonTerrestrialNetwork())
                 .setIsNbIotNtn(isNbIotNtn(mSubId))
+                .setPduLength(pduLength)
                 .build();
         mPersistMmsAtomsStorage.addIncomingMms(incomingMms);
     }

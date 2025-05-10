@@ -378,4 +378,20 @@ public class DownloadRequest extends MmsRequest {
         }
         return wapSize;
     }
+
+    /**
+     * Calculates the PDU length for downloaded MMS.
+     *
+     * @param result Operation result code.
+     * @param response Received PDU bytes for download.
+     * @return The length of downloaded PDU if successful, otherwise 0.
+     */
+    @Override
+    protected int getPduLength(int result, byte[] response) {
+        int payloadSize = 0;
+        if (result == Activity.RESULT_OK && response != null) {
+            payloadSize = response.length;
+        }
+        return payloadSize;
+    }
 }
