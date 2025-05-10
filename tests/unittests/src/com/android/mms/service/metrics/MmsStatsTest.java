@@ -84,7 +84,7 @@ public class MmsStatsTest {
                 mTelephonyManager, null, true);
         mSpyMmsStats = Mockito.spy(mmsStats);
         doReturn(false).when(mSpyMmsStats).isNbIotNtn(inactiveSubId);
-        mSpyMmsStats.addAtomToStorage(Activity.RESULT_OK);
+        mSpyMmsStats.addAtomToStorage(Activity.RESULT_OK, 0, false, 0, 10);
 
         ArgumentCaptor<IncomingMms> incomingMmsCaptor = ArgumentCaptor.forClass(IncomingMms.class);
         verify(mPersistMmsAtomsStorage).addIncomingMms(incomingMmsCaptor.capture());
@@ -103,6 +103,7 @@ public class MmsStatsTest {
         assertThat(incomingMms.getIsManagedProfile()).isEqualTo(false);
         assertThat(incomingMms.getIsNtn()).isEqualTo(false);
         assertThat(incomingMms.getIsNbIotNtn()).isEqualTo(false);
+        assertThat(incomingMms.getPduLength()).isEqualTo(10);
         verifyNoMoreInteractions(mPersistMmsAtomsStorage);
     }
 
