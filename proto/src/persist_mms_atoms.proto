@@ -73,4 +73,6 @@ message OutgoingMms {
   optional bool is_ntn = 14;
   optional bool is_nb_iot_ntn = 15;
   optional int32 pdu_length = 16;
+  optional string calling_package_name = 17;
+  optional int32 app_uid = 18;
 }

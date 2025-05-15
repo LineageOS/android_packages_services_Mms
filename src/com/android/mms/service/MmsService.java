@@ -221,7 +221,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
             MmsStats mmsStats = new MmsStats(MmsService.this,
                     mMmsMetricsCollector.getAtomsStorage(), subId, getTelephonyManager(subId),
-                    callingPkg, false);
+                    callingPkg, false, callingUser);
 
             // Make sure the subId is correct
             if (!SubscriptionManager.isValidSubscriptionId(subId)) {
@@ -310,7 +310,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
             MmsStats mmsStats = new MmsStats(MmsService.this,
                     mMmsMetricsCollector.getAtomsStorage(), subId, getTelephonyManager(subId),
-                    callingPkg, true);
+                    callingPkg, true, callingUser);
 
             // Make sure the subId is correct
             if (!SubscriptionManager.isValidSubscriptionId(subId)) {
