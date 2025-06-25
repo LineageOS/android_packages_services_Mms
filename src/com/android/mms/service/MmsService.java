@@ -365,8 +365,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             }
 
             final DownloadRequest request = new DownloadRequest(MmsService.this, subId, locationUrl,
-                    contentUri, downloadedIntent, callingPkg, mmsConfig, MmsService.this,
-                    messageId, mmsStats, getTelephonyManager(subId));
+                    contentUri, downloadedIntent, callingUser, callingPkg, mmsConfig,
+                    MmsService.this, messageId, mmsStats, getTelephonyManager(subId));
 
             final String carrierMessagingServicePackage =
                     getCarrierMessagingServicePackageIfExists(subId);
@@ -1144,10 +1144,17 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
      *
      * @param contentUri content provider uri to which bytes should be written
      * @param pdu        Bytes to write
+     * @param callingUser user id of the calling app
      * @return true if all bytes successfully written else false
      */
-    public boolean writePduToContentUri(final Uri contentUri, final byte[] pdu) {
+    public boolean writePduToContentUri(final Uri contentUri, final byte[] pdu, int callingUser) {
         if (contentUri == null || pdu == null) {
+            return false;
+        }
+        int contentUriUserID = ContentProvider.getUserIdFromUri(contentUri, UserHandle.myUserId());
+        if (callingUser != contentUriUserID) {
+            LogUtil.e("Uri belongs to a different user. contentUriUserId is: " + contentUriUserID
+                    + "and calling User ID is:" + callingUser);
             return false;
         }
         final Callable<Boolean> copyDownloadedPduToOutput = new Callable<Boolean>() {
