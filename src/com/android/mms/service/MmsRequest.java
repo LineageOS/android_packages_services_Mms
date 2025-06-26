@@ -21,6 +21,7 @@ import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -431,6 +432,12 @@ public abstract class MmsRequest {
     }
 
     private boolean isImsOnWifi() {
+        PackageManager pm = mContext.getPackageManager();
+        if (pm == null || !pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_IMS)) {
+            LogUtil.d(this.toString(), "device doesn't support IMS feature");
+            return false;
+        }
+
         ImsMmTelManager imsManager;
         try {
             imsManager = ImsMmTelManager.createForSubscriptionId(mSubId);
