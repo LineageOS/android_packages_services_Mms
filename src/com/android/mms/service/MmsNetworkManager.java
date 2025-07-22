@@ -302,14 +302,9 @@ public class MmsNetworkManager {
         // With Satellite internet support, add satellite transport with restricted capability to
         // support mms over satellite network
         builder.removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED);
-        try {
-            // TODO: b/331622062 remove the try/catch
-            builder.addTransportType(NetworkCapabilities.TRANSPORT_SATELLITE);
-            builder.removeCapability(NetworkCapabilities
-                    .NET_CAPABILITY_NOT_BANDWIDTH_CONSTRAINED);
-        } catch (IllegalArgumentException exception) {
-            LogUtil.e("TRANSPORT_SATELLITE or NOT_BANDWIDTH_CONSTRAINED is not supported.");
-        }
+        builder.addTransportType(NetworkCapabilities.TRANSPORT_SATELLITE);
+        builder.removeCapability(NetworkCapabilities
+                .NET_CAPABILITY_NOT_BANDWIDTH_CONSTRAINED);
         mNetworkRequest = builder.build();
 
         mNetworkReleaseTask = new Runnable() {
