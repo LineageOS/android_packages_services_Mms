@@ -199,7 +199,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             // TODO: Fail fast when downloading will fail (i.e. SIM swapped)
 
             final DownloadRequest request = new DownloadRequest(MmsService.this, subId, locationUrl,
-                    contentUri, downloadedIntent, callingPkg, configOverrides, MmsService.this);
+                    contentUri, downloadedIntent, callingUser, callingPkg, configOverrides, MmsService.this);
+
             final String carrierMessagingServicePackage =
                     getCarrierMessagingServicePackageIfExists();
             if (carrierMessagingServicePackage != null) {
@@ -845,11 +846,18 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
     /**
      * Write pdu bytes to content provider uri
      * @param contentUri content provider uri to which bytes should be written
-     * @param pdu Bytes to write
+     * @param pdu        Bytes to write
+     * @param callingUser user id of the calling app
      * @return true if all bytes successfully written else false
      */
-    public boolean writePduToContentUri(final Uri contentUri, final byte[] pdu) {
+    public boolean writePduToContentUri(final Uri contentUri, final byte[] pdu, int callingUser) {
         if (contentUri == null || pdu == null) {
+            return false;
+        }
+        int contentUriUserID = ContentProvider.getUserIdFromUri(contentUri, UserHandle.myUserId());
+        if (callingUser != contentUriUserID) {
+            LogUtil.e("Uri belongs to a different user. contentUriUserId is: " + contentUriUserID
+                    + "and calling User ID is:" + callingUser);
             return false;
         }
         final Callable<Boolean> copyDownloadedPduToOutput = new Callable<Boolean>() {
