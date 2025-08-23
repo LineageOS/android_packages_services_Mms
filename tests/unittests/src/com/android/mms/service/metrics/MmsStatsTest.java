@@ -41,7 +41,6 @@ import android.telephony.SmsManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 
-import com.android.internal.telephony.flags.Flags;
 import com.android.mms.IncomingMms;
 import com.android.mms.OutgoingMms;
 
@@ -204,9 +203,6 @@ public class MmsStatsTest {
 
     @Test
     public void addAtomToStorage_outgoingMms_handledByCarrierApp_FailedWithReason() {
-        if (!Flags.temporaryFailuresInCarrierMessagingService()) {
-            return;
-        }
         OutgoingMms outgoingMms =
                 addAtomToStorage_outgoingMms(SmsManager.MMS_ERROR_NO_DATA_NETWORK, 0, true, 0, 0);
         assertThat(outgoingMms.getRat()).isEqualTo(TelephonyManager.NETWORK_TYPE_UNKNOWN);
