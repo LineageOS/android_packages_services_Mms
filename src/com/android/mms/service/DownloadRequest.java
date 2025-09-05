@@ -58,14 +58,16 @@ public class DownloadRequest extends MmsRequest {
     private final String mLocationUrl;
     private final PendingIntent mDownloadedIntent;
     private final Uri mContentUri;
+    private final int mCallingUser;
 
     public DownloadRequest(RequestManager manager, int subId, String locationUrl,
-            Uri contentUri, PendingIntent downloadedIntent, String creator,
+            Uri contentUri, PendingIntent downloadedIntent, int callingUser, String creator,
             Bundle configOverrides, Context context, long messageId, MmsStats mmsStats) {
         super(manager, subId, creator, configOverrides, context, messageId, mmsStats);
         mLocationUrl = locationUrl;
         mDownloadedIntent = downloadedIntent;
         mContentUri = contentUri;
+        mCallingUser = callingUser;
     }
 
     @Override
@@ -252,7 +254,7 @@ public class DownloadRequest extends MmsRequest {
      */
     @Override
     protected boolean transferResponse(Intent fillIn, final byte[] response) {
-        return mRequestManager.writePduToContentUri(mContentUri, response);
+        return mRequestManager.writePduToContentUri(mContentUri, response, mCallingUser);
     }
 
     @Override
