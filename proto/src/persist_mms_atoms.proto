@@ -54,6 +54,7 @@ message IncomingMms {
   optional bool is_ntn = 13;
   optional bool is_nb_iot_ntn = 14;
   optional int32 pdu_length = 15;
+  optional string plmn = 16;
 }
 
 message OutgoingMms {
@@ -75,4 +76,5 @@ message OutgoingMms {
   optional int32 pdu_length = 16;
   optional string calling_package_name = 17;
   optional int32 app_uid = 18;
+  optional string plmn = 19;
 }

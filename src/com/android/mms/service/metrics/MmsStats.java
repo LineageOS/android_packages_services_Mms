@@ -41,6 +41,7 @@ import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneFactory;
 import com.android.internal.telephony.SmsApplication;
 import com.android.internal.telephony.flags.Flags;
+import com.android.internal.telephony.satellite.SatelliteConstants;
 import com.android.internal.telephony.satellite.SatelliteController;
 import com.android.internal.telephony.satellite.metrics.CarrierRoamingSatelliteSessionStats;
 import com.android.mms.IncomingMms;
@@ -127,6 +128,7 @@ public class MmsStats {
                 .setIsNtn(isInSatelliteModeForCarrierRoaming(mSubId))
                 .setIsNbIotNtn(isNbIotNtn(mSubId))
                 .setPduLength(pduLength)
+                .setPlmn(getPlmnValue(mSubId))
                 .build();
         mPersistMmsAtomsStorage.addIncomingMms(incomingMms);
     }
@@ -153,6 +155,7 @@ public class MmsStats {
                 .setPduLength(pduLength)
                 .setCallingPackageName(getSanitizedCallingPackageName())
                 .setAppUid(mAppUid)
+                .setPlmn(getPlmnValue(mSubId))
                 .build();
         mPersistMmsAtomsStorage.addOutgoingMms(outgoingMms);
     }
@@ -270,6 +273,23 @@ public class MmsStats {
         }
 
         return satelliteController.isInCarrierRoamingNbIotNtn(phone);
+    }
+
+    @VisibleForTesting(visibility = VisibleForTesting.Visibility.PRIVATE)
+    protected String getPlmnValue(int subId) {
+        Phone phone = PhoneFactory.getPhone(SubscriptionManager.getPhoneId(subId));
+        if (phone == null) {
+            Log.e(TAG, "getPlmnValue(): phone is null");
+            return SatelliteConstants.DEFAULT_PLMN;
+        }
+
+        SatelliteController satelliteController = SatelliteController.getInstance();
+        if (satelliteController == null) {
+            Log.e(TAG, "getPlmnValue(): satelliteController is null");
+            return SatelliteConstants.DEFAULT_PLMN;
+        }
+
+        return satelliteController.getSatellitePlmnForMetrics(phone);
     }
 
     /**

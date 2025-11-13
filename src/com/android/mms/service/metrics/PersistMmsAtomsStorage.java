@@ -38,6 +38,7 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public class PersistMmsAtomsStorage {
     private static final String TAG = PersistMmsAtomsStorage.class.getSimpleName();
@@ -316,7 +317,8 @@ public class PersistMmsAtomsStorage {
                     && mms.getRetryId() == key.getRetryId()
                     && mms.getHandledByCarrierApp() == key.getHandledByCarrierApp()
                     && mms.getIsNtn() == key.getIsNtn()
-                    && mms.getIsNbIotNtn() == key.getIsNbIotNtn()) {
+                    && mms.getIsNbIotNtn() == key.getIsNbIotNtn()
+                    && Objects.equals(mms.getPlmn(), key.getPlmn())) {
                 return i;
             }
         }
@@ -343,7 +345,8 @@ public class PersistMmsAtomsStorage {
                     && mms.getIsNtn() == key.getIsNtn()
                     && mms.getIsNbIotNtn() == key.getIsNbIotNtn()
                     && mms.getPduLength() == key.getPduLength()
-                    && mms.getCallingPackageName().equals(key.getCallingPackageName())) {
+                    && mms.getCallingPackageName().equals(key.getCallingPackageName())
+                    && Objects.equals(mms.getPlmn(), key.getPlmn())) {
                 return i;
             }
         }
