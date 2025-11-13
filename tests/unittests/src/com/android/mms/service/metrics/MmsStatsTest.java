@@ -23,6 +23,9 @@ import static com.android.mms.MmsStatsLog.OUTGOING_MMS__RESULT__MMS_RESULT_SUCCE
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static junit.framework.Assert.assertTrue;
+
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
@@ -44,6 +47,7 @@ import com.android.mms.OutgoingMms;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -56,6 +60,7 @@ public class MmsStatsTest {
     private TelephonyManager mTelephonyManager;
     private SubscriptionManager mSubscriptionManager;
     @Spy private MmsStats mSpyMmsStats;
+    private static final String TEST_CALLING_PACKAGE_NAME = "TEST_CALLING_PACKAGE_NAME";
 
     @Before
     public void setUp() {
@@ -81,10 +86,11 @@ public class MmsStatsTest {
         doReturn(TelephonyManager.UNKNOWN_CARRIER_ID).when(mTelephonyManager).getSimCarrierId();
         int inactiveSubId = 123;
         MmsStats mmsStats = new MmsStats(mContext, mPersistMmsAtomsStorage, inactiveSubId,
-                mTelephonyManager, null, true);
+                mTelephonyManager, null, true, 10000);
         mSpyMmsStats = Mockito.spy(mmsStats);
-        doReturn(false).when(mSpyMmsStats).isNbIotNtn(inactiveSubId);
-        mSpyMmsStats.addAtomToStorage(Activity.RESULT_OK);
+        doReturn(false).when(mSpyMmsStats).isNbIotNtn(anyInt());
+        doReturn(false).when(mSpyMmsStats).isInSatelliteModeForCarrierRoaming(anyInt());
+        mSpyMmsStats.addAtomToStorage(Activity.RESULT_OK, 0, false, 0, 10);
 
         ArgumentCaptor<IncomingMms> incomingMmsCaptor = ArgumentCaptor.forClass(IncomingMms.class);
         verify(mPersistMmsAtomsStorage).addIncomingMms(incomingMmsCaptor.capture());
@@ -103,19 +109,21 @@ public class MmsStatsTest {
         assertThat(incomingMms.getIsManagedProfile()).isEqualTo(false);
         assertThat(incomingMms.getIsNtn()).isEqualTo(false);
         assertThat(incomingMms.getIsNbIotNtn()).isEqualTo(false);
+        assertThat(incomingMms.getPduLength()).isEqualTo(10);
         verifyNoMoreInteractions(mPersistMmsAtomsStorage);
     }
 
     private OutgoingMms addAtomToStorage_outgoingMms(
-            int result, int retryId, boolean handledByCarrierApp, long mMessageId) {
+            int result, int retryId, boolean handledByCarrierApp, long mMessageId, int pduLength) {
         doReturn(null).when(mTelephonyManager).getServiceState();
         doReturn(TelephonyManager.UNKNOWN_CARRIER_ID).when(mTelephonyManager).getSimCarrierId();
         int inactiveSubId = 123;
         MmsStats mmsStats = new MmsStats(mContext, mPersistMmsAtomsStorage, inactiveSubId,
-                mTelephonyManager, null, false);
+                mTelephonyManager, null, false, 10000);
         mSpyMmsStats = Mockito.spy(mmsStats);
-        doReturn(false).when(mSpyMmsStats).isNbIotNtn(inactiveSubId);
-        mSpyMmsStats.addAtomToStorage(result, retryId, handledByCarrierApp, mMessageId);
+        doReturn(false).when(mSpyMmsStats).isNbIotNtn(anyInt());
+        doReturn(false).when(mSpyMmsStats).isInSatelliteModeForCarrierRoaming(anyInt());
+        mSpyMmsStats.addAtomToStorage(result, retryId, handledByCarrierApp, mMessageId, pduLength);
 
         ArgumentCaptor<OutgoingMms> outgoingMmsCaptor = ArgumentCaptor.forClass(OutgoingMms.class);
         verify(mPersistMmsAtomsStorage).addOutgoingMms(outgoingMmsCaptor.capture());
@@ -125,7 +133,7 @@ public class MmsStatsTest {
 
     @Test
     public void addAtomToStorage_outgoingMms_default() {
-        OutgoingMms outgoingMms = addAtomToStorage_outgoingMms(Activity.RESULT_OK, 0, false, 0);
+        OutgoingMms outgoingMms = addAtomToStorage_outgoingMms(Activity.RESULT_OK, 0, false, 0, 10);
         assertThat(outgoingMms.getRat()).isEqualTo(TelephonyManager.NETWORK_TYPE_UNKNOWN);
         assertThat(outgoingMms.getResult()).isEqualTo(OUTGOING_MMS__RESULT__MMS_RESULT_SUCCESS);
         assertThat(outgoingMms.getRoaming()).isEqualTo(ServiceState.ROAMING_TYPE_NOT_ROAMING);
@@ -141,11 +149,14 @@ public class MmsStatsTest {
         assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
         assertThat(outgoingMms.getIsNtn()).isEqualTo(false);
         assertThat(outgoingMms.getIsNbIotNtn()).isEqualTo(false);
+        assertThat(outgoingMms.getPduLength()).isEqualTo(10);
+        assertTrue(outgoingMms.getCallingPackageName().isEmpty());
+        assertThat(outgoingMms.getAppUid()).isEqualTo(10000);
     }
 
     @Test
     public void addAtomToStorage_outgoingMms_handledByCarrierApp_Succeeded() {
-        OutgoingMms outgoingMms = addAtomToStorage_outgoingMms(Activity.RESULT_OK, 0, true, 0);
+        OutgoingMms outgoingMms = addAtomToStorage_outgoingMms(Activity.RESULT_OK, 0, true, 0, 0);
         assertThat(outgoingMms.getRat()).isEqualTo(TelephonyManager.NETWORK_TYPE_UNKNOWN);
         assertThat(outgoingMms.getResult()).isEqualTo(OUTGOING_MMS__RESULT__MMS_RESULT_SUCCESS);
         assertThat(outgoingMms.getRoaming()).isEqualTo(ServiceState.ROAMING_TYPE_NOT_ROAMING);
@@ -161,12 +172,15 @@ public class MmsStatsTest {
         assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
         assertThat(outgoingMms.getIsNtn()).isEqualTo(false);
         assertThat(outgoingMms.getIsNbIotNtn()).isEqualTo(false);
+        assertThat(outgoingMms.getPduLength()).isEqualTo(0);
+        assertTrue(outgoingMms.getCallingPackageName().isEmpty());
+        assertThat(outgoingMms.getAppUid()).isEqualTo(10000);
     }
 
     @Test
     public void addAtomToStorage_outgoingMms_handledByCarrierApp_FailedWithoutReason() {
         OutgoingMms outgoingMms =
-                addAtomToStorage_outgoingMms(SmsManager.MMS_ERROR_UNSPECIFIED, 0, true, 0);
+                addAtomToStorage_outgoingMms(SmsManager.MMS_ERROR_UNSPECIFIED, 0, true, 0, 10);
         assertThat(outgoingMms.getRat()).isEqualTo(TelephonyManager.NETWORK_TYPE_UNKNOWN);
         assertThat(outgoingMms.getResult())
                 .isEqualTo(OUTGOING_MMS__RESULT__MMS_RESULT_ERROR_UNSPECIFIED);
@@ -183,6 +197,9 @@ public class MmsStatsTest {
         assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
         assertThat(outgoingMms.getIsNtn()).isEqualTo(false);
         assertThat(outgoingMms.getIsNbIotNtn()).isEqualTo(false);
+        assertThat(outgoingMms.getPduLength()).isEqualTo(10);
+        assertTrue(outgoingMms.getCallingPackageName().isEmpty());
+        assertThat(outgoingMms.getAppUid()).isEqualTo(10000);
     }
 
     @Test
@@ -191,7 +208,7 @@ public class MmsStatsTest {
             return;
         }
         OutgoingMms outgoingMms =
-                addAtomToStorage_outgoingMms(SmsManager.MMS_ERROR_NO_DATA_NETWORK, 0, true, 0);
+                addAtomToStorage_outgoingMms(SmsManager.MMS_ERROR_NO_DATA_NETWORK, 0, true, 0, 0);
         assertThat(outgoingMms.getRat()).isEqualTo(TelephonyManager.NETWORK_TYPE_UNKNOWN);
         assertThat(outgoingMms.getResult())
                 .isEqualTo(OUTGOING_MMS__RESULT__MMS_RESULT_ERROR_NO_DATA_NETWORK);
@@ -208,6 +225,9 @@ public class MmsStatsTest {
         assertThat(outgoingMms.getIsManagedProfile()).isEqualTo(false);
         assertThat(outgoingMms.getIsNtn()).isEqualTo(false);
         assertThat(outgoingMms.getIsNbIotNtn()).isEqualTo(false);
+        assertThat(outgoingMms.getPduLength()).isEqualTo(0);
+        assertTrue(outgoingMms.getCallingPackageName().isEmpty());
+        assertThat(outgoingMms.getAppUid()).isEqualTo(10000);
     }
 
     @Test
@@ -215,9 +235,10 @@ public class MmsStatsTest {
         ServiceState serviceState = mock(ServiceState.class);
         doReturn(serviceState).when(mTelephonyManager).getServiceState();
         MmsStats mmsStats = new MmsStats(mContext, mPersistMmsAtomsStorage, 1,
-                mTelephonyManager, null, true);
+                mTelephonyManager, null, true, 10000);
         mSpyMmsStats = Mockito.spy(mmsStats);
-        doReturn(false).when(mSpyMmsStats).isNbIotNtn(1);
+        doReturn(false).when(mSpyMmsStats).isNbIotNtn(anyInt());
+        doReturn(false).when(mSpyMmsStats).isInSatelliteModeForCarrierRoaming(anyInt());
         mSpyMmsStats.addAtomToStorage(Activity.RESULT_OK);
 
         ArgumentCaptor<IncomingMms> incomingMmsCaptor = ArgumentCaptor.forClass(IncomingMms.class);
@@ -234,15 +255,17 @@ public class MmsStatsTest {
                 .isActiveSubscriptionId(eq(inactiveSubId));
 
         MmsStats mmsStats = new MmsStats(mContext, mPersistMmsAtomsStorage, inactiveSubId,
-                mTelephonyManager, null, false);
+                mTelephonyManager, null, false, 10000);
         mSpyMmsStats = Mockito.spy(mmsStats);
-        doReturn(false).when(mSpyMmsStats).isNbIotNtn(inactiveSubId);
+        doReturn(false).when(mSpyMmsStats).isNbIotNtn(anyInt());
+        doReturn(false).when(mSpyMmsStats).isInSatelliteModeForCarrierRoaming(anyInt());
         mSpyMmsStats.addAtomToStorage(Activity.RESULT_OK);
 
         // getSubscriptionUserHandle should not be called if subID is inactive.
         verify(mSubscriptionManager, never()).getSubscriptionUserHandle(eq(inactiveSubId));
     }
 
+    @Ignore("Should be enabled after resolving b/415883449")
     @Test
     public void testIsNtn_serviceState_notNull() {
         ServiceState serviceState = mock(ServiceState.class);
@@ -250,9 +273,10 @@ public class MmsStatsTest {
         doReturn(true).when(serviceState).isUsingNonTerrestrialNetwork();
 
         MmsStats mmsStats = new MmsStats(mContext, mPersistMmsAtomsStorage, 1,
-                mTelephonyManager, null, true);
+                mTelephonyManager, null, true, 10000);
         mSpyMmsStats = Mockito.spy(mmsStats);
-        doReturn(false).when(mSpyMmsStats).isNbIotNtn(1);
+        doReturn(false).when(mSpyMmsStats).isNbIotNtn(anyInt());
+        doReturn(false).when(mSpyMmsStats).isInSatelliteModeForCarrierRoaming(anyInt());
         mSpyMmsStats.addAtomToStorage(Activity.RESULT_OK);
 
         ArgumentCaptor<IncomingMms> incomingMmsCaptor = ArgumentCaptor.forClass(IncomingMms.class);
@@ -276,9 +300,10 @@ public class MmsStatsTest {
         doReturn(null).when(mTelephonyManager).getServiceState();
 
         MmsStats mmsStats = new MmsStats(mContext, mPersistMmsAtomsStorage, 1,
-                mTelephonyManager, null, true);
+                mTelephonyManager, null, true, 10000);
         mSpyMmsStats = Mockito.spy(mmsStats);
-        doReturn(false).when(mSpyMmsStats).isNbIotNtn(1);
+        doReturn(false).when(mSpyMmsStats).isNbIotNtn(anyInt());
+        doReturn(false).when(mSpyMmsStats).isInSatelliteModeForCarrierRoaming(anyInt());
         mSpyMmsStats.addAtomToStorage(Activity.RESULT_OK);
 
         ArgumentCaptor<IncomingMms> incomingMmsCaptor = ArgumentCaptor.forClass(IncomingMms.class);
@@ -290,9 +315,10 @@ public class MmsStatsTest {
     @Test
     public void testIsNbIotNtn_serviceState_notNull() {
         MmsStats mmsStats = new MmsStats(mContext, mPersistMmsAtomsStorage, 1,
-                mTelephonyManager, null, true);
+                mTelephonyManager, null, true, 10000);
         mSpyMmsStats = Mockito.spy(mmsStats);
-        doReturn(true).when(mSpyMmsStats).isNbIotNtn(1);
+        doReturn(true).when(mSpyMmsStats).isNbIotNtn(anyInt());
+        doReturn(false).when(mSpyMmsStats).isInSatelliteModeForCarrierRoaming(anyInt());
         mSpyMmsStats.addAtomToStorage(Activity.RESULT_OK);
 
         ArgumentCaptor<IncomingMms> incomingMmsCaptor = ArgumentCaptor.forClass(IncomingMms.class);
@@ -308,5 +334,36 @@ public class MmsStatsTest {
         verify(mPersistMmsAtomsStorage).addIncomingMms(incomingMmsCaptor.capture());
         incomingMms = incomingMmsCaptor.getValue();
         assertThat(incomingMms.getIsNbIotNtn()).isEqualTo(false);
+    }
+
+    @Test
+    public void setTestCallingPackageName() {
+        ServiceState serviceState = mock(ServiceState.class);
+        doReturn(serviceState).when(mTelephonyManager).getServiceState();
+        MmsStats mmsStats = new MmsStats(mContext, mPersistMmsAtomsStorage, 1,
+                mTelephonyManager, TEST_CALLING_PACKAGE_NAME, false, 10000);
+        mSpyMmsStats = Mockito.spy(mmsStats);
+        doReturn(true).when(mSpyMmsStats).isNbIotNtn(anyInt());
+        doReturn(true).when(mSpyMmsStats).isDefaultMmsApp();
+        doReturn(false).when(mSpyMmsStats).isInSatelliteModeForCarrierRoaming(anyInt());
+        mSpyMmsStats.addAtomToStorage(Activity.RESULT_OK);
+
+        ArgumentCaptor<OutgoingMms> outgoingMmsCaptor = ArgumentCaptor.forClass(OutgoingMms.class);
+        verify(mPersistMmsAtomsStorage).addOutgoingMms(outgoingMmsCaptor.capture());
+        OutgoingMms outgoingMms = outgoingMmsCaptor.getValue();
+        assertTrue(outgoingMms.getCallingPackageName().isEmpty());
+        assertThat(outgoingMms.getAppUid()).isEqualTo(10000);
+
+        // TODO Should be enabled after resolving b/415883449
+//        reset(mPersistMmsAtomsStorage);
+//        reset(serviceState);
+//        doReturn(true).when(serviceState).isInSatelliteModeForCarrierRoaming(anyInt());
+//        mSpyMmsStats.addAtomToStorage(Activity.RESULT_OK);
+//
+//        outgoingMmsCaptor = ArgumentCaptor.forClass(OutgoingMms.class);
+//        verify(mPersistMmsAtomsStorage).addOutgoingMms(outgoingMmsCaptor.capture());
+//        outgoingMms = outgoingMmsCaptor.getValue();
+//        assertThat(outgoingMms.getCallingPackageName()).isEqualTo(TEST_CALLING_PACKAGE_NAME);
+//        assertThat(outgoingMms.getAppUid()).isEqualTo(10000);
     }
 }

@@ -82,7 +82,7 @@ public class MmsRequestRoboTest {
 
         mPersistMmsAtomsStorage = mock(PersistMmsAtomsStorage.class);
         mMmsStats = new MmsStats(mContext, mPersistMmsAtomsStorage, mSubId,
-                mTelephonyManager, null, true);
+                mTelephonyManager, null, true, 0);
         mCarrierConfigValues = new Bundle();
         mCarrierConfigValues.putInt(
                 CarrierConfigManager.KEY_MMS_MAX_NTN_PAYLOAD_SIZE_BYTES_INT,

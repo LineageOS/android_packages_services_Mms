@@ -516,4 +516,17 @@ public class SendRequest extends MmsRequest {
         }
         return mPduData.length;
     }
+
+    /**
+     * Calculates the PDU length for sent MMS.
+     * <p>
+     * This implementation returns the size of the payload that was intended to be sent, obtained
+     * via {@link #getPayloadSize()}.
+     * The {@code result} and {@code response} parameters are ignored for this request type, as the
+     * size is known before the send operation occurs.
+     */
+    @Override
+    protected int getPduLength(int result, byte[] response) {
+        return (int) this.getPayloadSize();
+    }
 }
