@@ -21,6 +21,7 @@ import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -42,7 +43,6 @@ import android.util.SparseArray;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.telephony.flags.Flags;
 import com.android.mms.service.exception.ApnException;
 import com.android.mms.service.exception.MmsHttpException;
 import com.android.mms.service.exception.MmsNetworkException;
@@ -94,9 +94,10 @@ public abstract class MmsRequest {
          * Write pdu to supplied content uri
          * @param contentUri content uri to which bytes should be written
          * @param pdu pdu bytes to write
+         * @param callingUser user id of the calling app
          * @return true in case of success (else false)
          */
-        public boolean writePduToContentUri(final Uri contentUri, final byte[] pdu);
+        boolean writePduToContentUri(Uri contentUri, byte[] pdu, int callingUser);
     }
 
     // The reference to the pending requests manager (i.e. the MmsService)
@@ -430,6 +431,12 @@ public abstract class MmsRequest {
     }
 
     private boolean isImsOnWifi() {
+        PackageManager pm = mContext.getPackageManager();
+        if (pm == null || !pm.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_IMS)) {
+            LogUtil.d(this.toString(), "device doesn't support IMS feature");
+            return false;
+        }
+
         ImsMmTelManager imsManager;
         try {
             imsManager = ImsMmTelManager.createForSubscriptionId(mSubId);
@@ -473,61 +480,43 @@ public abstract class MmsRequest {
     }
 
     /**
-     * Converts from {@code carrierMessagingAppResult} to a platform result code.
-     */
-    protected static int toSmsManagerResult(int carrierMessagingAppResult) {
-        switch (carrierMessagingAppResult) {
-            case CarrierMessagingService.SEND_STATUS_OK:
-                return Activity.RESULT_OK;
-            case CarrierMessagingService.SEND_STATUS_RETRY_ON_CARRIER_NETWORK:
-                return SmsManager.MMS_ERROR_RETRY;
-            default:
-                return SmsManager.MMS_ERROR_UNSPECIFIED;
-        }
-    }
-
-    /**
      * Converts from {@code carrierMessagingAppResult} to a platform result code for outbound MMS
      * requests.
      */
     protected static int toSmsManagerResultForOutboundMms(int carrierMessagingAppResult) {
-        if (Flags.temporaryFailuresInCarrierMessagingService()) {
-            switch (carrierMessagingAppResult) {
-                case CarrierMessagingService.SEND_STATUS_OK:
-                    // TODO: b/378931437 - Update to an SmsManager result code when one is
-                    // available.
-                    return Activity.RESULT_OK;
-                case CarrierMessagingService.SEND_STATUS_RETRY_ON_CARRIER_NETWORK, // fall through
-                    CarrierMessagingService.SEND_STATUS_MMS_ERROR_RETRY:
-                    return SmsManager.MMS_ERROR_RETRY;
-                case CarrierMessagingService.SEND_STATUS_ERROR: // fall through
-                case CarrierMessagingService.SEND_STATUS_MMS_ERROR_UNSPECIFIED:
-                    return SmsManager.MMS_ERROR_UNSPECIFIED;
-                case CarrierMessagingService.SEND_STATUS_MMS_ERROR_INVALID_APN:
-                    return SmsManager.MMS_ERROR_INVALID_APN;
-                case CarrierMessagingService.SEND_STATUS_MMS_ERROR_UNABLE_CONNECT_MMS:
-                    return SmsManager.MMS_ERROR_UNABLE_CONNECT_MMS;
-                case CarrierMessagingService.SEND_STATUS_MMS_ERROR_HTTP_FAILURE:
-                    return SmsManager.MMS_ERROR_HTTP_FAILURE;
-                case CarrierMessagingService.SEND_STATUS_MMS_ERROR_IO_ERROR:
-                    return SmsManager.MMS_ERROR_IO_ERROR;
-                case CarrierMessagingService.SEND_STATUS_MMS_ERROR_CONFIGURATION_ERROR:
-                    return SmsManager.MMS_ERROR_CONFIGURATION_ERROR;
-                case CarrierMessagingService.SEND_STATUS_MMS_ERROR_NO_DATA_NETWORK:
-                    return SmsManager.MMS_ERROR_NO_DATA_NETWORK;
-                case CarrierMessagingService.SEND_STATUS_MMS_ERROR_INVALID_SUBSCRIPTION_ID:
-                    return SmsManager.MMS_ERROR_INVALID_SUBSCRIPTION_ID;
-                case CarrierMessagingService.SEND_STATUS_MMS_ERROR_INACTIVE_SUBSCRIPTION:
-                    return SmsManager.MMS_ERROR_INACTIVE_SUBSCRIPTION;
-                case CarrierMessagingService.SEND_STATUS_MMS_ERROR_DATA_DISABLED:
-                    return SmsManager.MMS_ERROR_DATA_DISABLED;
-                case CarrierMessagingService.SEND_STATUS_MMS_ERROR_MMS_DISABLED_BY_CARRIER:
-                    return SmsManager.MMS_ERROR_MMS_DISABLED_BY_CARRIER;
-                default:
-                    return SmsManager.MMS_ERROR_UNSPECIFIED;
-            }
-        } else {
-            return toSmsManagerResult(carrierMessagingAppResult);
+        switch (carrierMessagingAppResult) {
+            case CarrierMessagingService.SEND_STATUS_OK:
+                // TODO: b/378931437 - Update to an SmsManager result code when one is
+                // available.
+                return Activity.RESULT_OK;
+            case CarrierMessagingService.SEND_STATUS_RETRY_ON_CARRIER_NETWORK, // fall through
+                CarrierMessagingService.SEND_STATUS_MMS_ERROR_RETRY:
+                return SmsManager.MMS_ERROR_RETRY;
+            case CarrierMessagingService.SEND_STATUS_ERROR: // fall through
+            case CarrierMessagingService.SEND_STATUS_MMS_ERROR_UNSPECIFIED:
+                return SmsManager.MMS_ERROR_UNSPECIFIED;
+            case CarrierMessagingService.SEND_STATUS_MMS_ERROR_INVALID_APN:
+                return SmsManager.MMS_ERROR_INVALID_APN;
+            case CarrierMessagingService.SEND_STATUS_MMS_ERROR_UNABLE_CONNECT_MMS:
+                return SmsManager.MMS_ERROR_UNABLE_CONNECT_MMS;
+            case CarrierMessagingService.SEND_STATUS_MMS_ERROR_HTTP_FAILURE:
+                return SmsManager.MMS_ERROR_HTTP_FAILURE;
+            case CarrierMessagingService.SEND_STATUS_MMS_ERROR_IO_ERROR:
+                return SmsManager.MMS_ERROR_IO_ERROR;
+            case CarrierMessagingService.SEND_STATUS_MMS_ERROR_CONFIGURATION_ERROR:
+                return SmsManager.MMS_ERROR_CONFIGURATION_ERROR;
+            case CarrierMessagingService.SEND_STATUS_MMS_ERROR_NO_DATA_NETWORK:
+                return SmsManager.MMS_ERROR_NO_DATA_NETWORK;
+            case CarrierMessagingService.SEND_STATUS_MMS_ERROR_INVALID_SUBSCRIPTION_ID:
+                return SmsManager.MMS_ERROR_INVALID_SUBSCRIPTION_ID;
+            case CarrierMessagingService.SEND_STATUS_MMS_ERROR_INACTIVE_SUBSCRIPTION:
+                return SmsManager.MMS_ERROR_INACTIVE_SUBSCRIPTION;
+            case CarrierMessagingService.SEND_STATUS_MMS_ERROR_DATA_DISABLED:
+                return SmsManager.MMS_ERROR_DATA_DISABLED;
+            case CarrierMessagingService.SEND_STATUS_MMS_ERROR_MMS_DISABLED_BY_CARRIER:
+                return SmsManager.MMS_ERROR_MMS_DISABLED_BY_CARRIER;
+            default:
+                return SmsManager.MMS_ERROR_UNSPECIFIED;
         }
     }
 
@@ -536,42 +525,38 @@ public abstract class MmsRequest {
      * requests.
      */
     protected static int toSmsManagerResultForInboundMms(int carrierMessagingAppResult) {
-        if (Flags.temporaryFailuresInCarrierMessagingService()) {
-            switch (carrierMessagingAppResult) {
-                case CarrierMessagingService.DOWNLOAD_STATUS_OK:
-                    return Activity.RESULT_OK;
-                case CarrierMessagingService.DOWNLOAD_STATUS_RETRY_ON_CARRIER_NETWORK:
-                    return SmsManager.MMS_ERROR_RETRY;
-                case CarrierMessagingService.DOWNLOAD_STATUS_ERROR: // fall through
-                case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_UNSPECIFIED:
-                    return SmsManager.MMS_ERROR_UNSPECIFIED;
-                case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_INVALID_APN:
-                    return SmsManager.MMS_ERROR_INVALID_APN;
-                case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_UNABLE_CONNECT_MMS:
-                    return SmsManager.MMS_ERROR_UNABLE_CONNECT_MMS;
-                case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_HTTP_FAILURE:
-                    return SmsManager.MMS_ERROR_HTTP_FAILURE;
-                case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_IO_ERROR:
-                    return SmsManager.MMS_ERROR_IO_ERROR;
-                case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_RETRY:
-                    return SmsManager.MMS_ERROR_RETRY;
-                case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_CONFIGURATION_ERROR:
-                    return SmsManager.MMS_ERROR_CONFIGURATION_ERROR;
-                case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_NO_DATA_NETWORK:
-                    return SmsManager.MMS_ERROR_NO_DATA_NETWORK;
-                case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_INVALID_SUBSCRIPTION_ID:
-                    return SmsManager.MMS_ERROR_INVALID_SUBSCRIPTION_ID;
-                case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_INACTIVE_SUBSCRIPTION:
-                    return SmsManager.MMS_ERROR_INACTIVE_SUBSCRIPTION;
-                case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_DATA_DISABLED:
-                    return SmsManager.MMS_ERROR_DATA_DISABLED;
-                case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_MMS_DISABLED_BY_CARRIER:
-                    return SmsManager.MMS_ERROR_MMS_DISABLED_BY_CARRIER;
-                default:
-                    return SmsManager.MMS_ERROR_UNSPECIFIED;
-            }
-        } else {
-            return toSmsManagerResult(carrierMessagingAppResult);
+        switch (carrierMessagingAppResult) {
+            case CarrierMessagingService.DOWNLOAD_STATUS_OK:
+                return Activity.RESULT_OK;
+            case CarrierMessagingService.DOWNLOAD_STATUS_RETRY_ON_CARRIER_NETWORK:
+                return SmsManager.MMS_ERROR_RETRY;
+            case CarrierMessagingService.DOWNLOAD_STATUS_ERROR: // fall through
+            case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_UNSPECIFIED:
+                return SmsManager.MMS_ERROR_UNSPECIFIED;
+            case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_INVALID_APN:
+                return SmsManager.MMS_ERROR_INVALID_APN;
+            case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_UNABLE_CONNECT_MMS:
+                return SmsManager.MMS_ERROR_UNABLE_CONNECT_MMS;
+            case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_HTTP_FAILURE:
+                return SmsManager.MMS_ERROR_HTTP_FAILURE;
+            case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_IO_ERROR:
+                return SmsManager.MMS_ERROR_IO_ERROR;
+            case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_RETRY:
+                return SmsManager.MMS_ERROR_RETRY;
+            case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_CONFIGURATION_ERROR:
+                return SmsManager.MMS_ERROR_CONFIGURATION_ERROR;
+            case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_NO_DATA_NETWORK:
+                return SmsManager.MMS_ERROR_NO_DATA_NETWORK;
+            case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_INVALID_SUBSCRIPTION_ID:
+                return SmsManager.MMS_ERROR_INVALID_SUBSCRIPTION_ID;
+            case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_INACTIVE_SUBSCRIPTION:
+                return SmsManager.MMS_ERROR_INACTIVE_SUBSCRIPTION;
+            case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_DATA_DISABLED:
+                return SmsManager.MMS_ERROR_DATA_DISABLED;
+            case CarrierMessagingService.DOWNLOAD_STATUS_MMS_ERROR_MMS_DISABLED_BY_CARRIER:
+                return SmsManager.MMS_ERROR_MMS_DISABLED_BY_CARRIER;
+            default:
+                return SmsManager.MMS_ERROR_UNSPECIFIED;
         }
     }
 
