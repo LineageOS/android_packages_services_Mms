@@ -33,6 +33,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.telephony.ServiceState;
 import android.telephony.TelephonyManager;
+
 import androidx.annotation.Nullable;
 
 import com.android.mms.IncomingMms;
@@ -629,6 +630,7 @@ public class PersistMmsAtomsStorageTest {
                 .setMmsCount(1)
                 .setRetryId(0)
                 .setHandledByCarrierApp(false)
+                .setPlmn("123456")
                 .build();
 
         mIncomingMms2Proto = IncomingMms.newBuilder()
@@ -643,6 +645,7 @@ public class PersistMmsAtomsStorageTest {
                 .setMmsCount(1)
                 .setRetryId(0)
                 .setHandledByCarrierApp(false)
+                .setPlmn("123456")
                 .build();
 
         mIncomingMmsList = new ArrayList<>();
@@ -662,6 +665,7 @@ public class PersistMmsAtomsStorageTest {
                 .setIsFromDefaultApp(true)
                 .setRetryId(0)
                 .setHandledByCarrierApp(false)
+                .setPlmn("123456")
                 .build();
 
         mOutgoingMms2Proto = OutgoingMms.newBuilder()
@@ -677,6 +681,7 @@ public class PersistMmsAtomsStorageTest {
                 .setIsFromDefaultApp(true)
                 .setRetryId(0)
                 .setHandledByCarrierApp(false)
+                .setPlmn("123456")
                 .build();
 
         mOutgoingMmsList = new ArrayList<>();
