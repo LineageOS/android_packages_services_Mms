@@ -17,6 +17,7 @@
 package com.android.mms.service;
 
 import static android.telephony.SmsManager.MMS_ERROR_MMS_DISABLED_BY_CARRIER;
+import static android.service.messaging.AlternativeMessageTransportService.UPGRADE_STATUS_ACCEPTED;
 
 import static com.google.android.mms.pdu.PduHeaders.MESSAGE_TYPE;
 import static com.google.android.mms.pdu.PduHeaders.MESSAGE_TYPE_SEND_REQ;
@@ -44,6 +45,7 @@ import android.provider.Settings;
 import android.provider.Telephony;
 import android.service.carrier.CarrierMessagingService;
 import android.telephony.AnomalyReporter;
+import android.telephony.MessageUpgradeController;
 import android.telephony.SmsManager;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
@@ -219,6 +221,37 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             LogUtil.d("sendMessage " + formatCrossStackMessageId(messageId));
             enforceSystemUid();
 
+            // Check if the message can be promoted by the default SMS app.
+            // TODO(b/475776188): Add unit tests for mms upgrade via AMTS.
+            if (Flags.messagePromotion()) {
+                MessageUpgradeController controller =
+                        new MessageUpgradeController(MmsService.this);
+                if (controller.isMessageUpgradeSupportedAndNotDma(callingPkg)) {
+                    LogUtil.d("Upgrading MMS via default SMS app.");
+                    controller.upgradeMessage(
+                            contentUri, Runnable::run, (status) -> {
+                                if (status != UPGRADE_STATUS_ACCEPTED) {
+                                    // fallback to standard SMS
+                                    sendMessageWithoutUpgrade(subId, callingUser, callingPkg,
+                                            contentUri, locationUrl,  configOverrides, sentIntent,
+                                            messageId, attributionTag);
+                                } else {
+                                    LogUtil.d("Default SMS app has accepted the message upgrade "
+                                            + "request.");
+                                }
+                            });
+                    return;
+                }
+            }
+
+            sendMessageWithoutUpgrade(subId, callingUser, callingPkg, contentUri, locationUrl,
+                    configOverrides, sentIntent, messageId, attributionTag);
+        }
+
+        private void sendMessageWithoutUpgrade(
+                int subId, int callingUser, String callingPkg, Uri contentUri, String locationUrl,
+                Bundle configOverrides, final PendingIntent sentIntent, long messageId,
+                String attributionTag) {
             MmsStats mmsStats = new MmsStats(MmsService.this,
                     mMmsMetricsCollector.getAtomsStorage(), subId, getTelephonyManager(subId),
                     callingPkg, false, callingUser);
