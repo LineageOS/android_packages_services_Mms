@@ -38,6 +38,7 @@ import android.text.TextUtils;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.telephony.SmsApplication;
 import com.android.internal.telephony.SmsNumberUtils;
+import com.android.internal.telephony.flags.Flags;
 import com.android.mms.service.exception.MmsHttpException;
 import com.android.mms.service.metrics.MmsStats;
 
@@ -266,6 +267,11 @@ public class SendRequest extends MmsRequest {
                 values.put(Telephony.Mms.CREATOR, mCreator);
             }
             values.put(Telephony.Mms.SUBSCRIPTION_ID, mSubId);
+            if (Flags.messagePromotion() && Flags.secureAccessToRestrictedRcsMessages()) {
+                // The message was attempted to be sent via MMS, thus not promoted, and should be
+                // unrestricted.
+                values.put(Telephony.ReadRestriction.RESTRICTED, false);
+            }
             if (SqliteWrapper.update(context, context.getContentResolver(), messageUri, values,
                     null/*where*/, null/*selectionArg*/) != 1) {
                 LogUtil.e(requestId, "persistIfRequired: failed to update message. "
