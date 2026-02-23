@@ -227,23 +227,30 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 Context context = MmsService.this.getApplicationContext();
                 if (MessageUpgradeController.isMessageUpgradeSupportedForPackage(
                         context, callingUser, callingPkg)) {
-                    LogUtil.d("Upgrading MMS via default SMS app.");
-                    MessageUpgradeController.upgradeMessage(
-                            context, callingUser, contentUri,
-                            Collections.singletonList(sentIntent),
-                            Collections.emptyList(),
-                            Runnable::run, (status) -> {
-                                if (status != UPGRADE_STATUS_ACCEPTED) {
-                                    // fallback to standard SMS
-                                    sendMessageWithoutUpgrade(subId, callingUser, callingPkg,
-                                            contentUri, locationUrl,  configOverrides, sentIntent,
-                                            messageId, attributionTag);
-                                } else {
-                                    LogUtil.d("Default SMS app has accepted the message upgrade "
-                                            + "request.");
-                                }
-                            });
-                    return;
+                    Uri messageUri = addMmsToOutbox(contentUri, callingUser, callingPkg);
+                    if (messageUri != null) {
+                        LogUtil.d("Upgrading MMS via default SMS app.");
+                        MessageUpgradeController.upgradeMessage(
+                                context, callingUser, messageUri,
+                                Collections.singletonList(sentIntent),
+                                Collections.emptyList(),
+                                Runnable::run, (status) -> {
+                                    if (status != UPGRADE_STATUS_ACCEPTED) {
+                                        // Fallback to standard SMS. Passing messageUri here will
+                                        // ensure that we update the existing entry in the db
+                                        // instead of creating a new one
+                                        sendMessageWithoutUpgrade(subId, callingUser, callingPkg,
+                                                messageUri, locationUrl,  configOverrides,
+                                                sentIntent, messageId, attributionTag);
+                                    } else {
+                                        LogUtil.d("Default SMS app has accepted the message upgrade"
+                                                + " request.");
+                                    }
+                                });
+                        return;
+                    } else {
+                        LogUtil.d("Couldn't persist MMS into telephony, sending without upgrade");
+                    }
                 }
             }
 
@@ -1014,9 +1021,17 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
     }
 
     private Uri addMmsDraft(Uri contentUri, int callingUser, String creator) {
+        return persistMms(contentUri, Telephony.Mms.Draft.CONTENT_URI, callingUser, creator);
+    }
+
+    private Uri addMmsToOutbox(Uri contentUri, int callingUser, String creator) {
+        return persistMms(contentUri, Telephony.Mms.Outbox.CONTENT_URI, callingUser, creator);
+    }
+
+    private Uri persistMms(Uri contentUri, Uri insertUri, int callingUser, String creator) {
         byte[] pduData = readPduFromContentUri(contentUri, MAX_MMS_FILE_SIZE, callingUser);
         if (pduData == null || pduData.length < 1) {
-            LogUtil.e("addMmsDraft: empty PDU");
+            LogUtil.e("persistMms: empty PDU");
             return null;
         }
         // Clear the calling identity and query the database using the phone user id
@@ -1026,22 +1041,22 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         try {
             final GenericPdu pdu = parsePduForAnyCarrier(pduData);
             if (pdu == null) {
-                LogUtil.e("addMmsDraft: can't parse input PDU");
+                LogUtil.e("persistMms: can't parse input PDU");
                 return null;
             }
             if (!(pdu instanceof SendReq)) {
-                LogUtil.e("addMmsDraft; invalid MMS type: " + pdu.getClass().getCanonicalName());
+                LogUtil.e("persistMms; invalid MMS type: " + pdu.getClass().getCanonicalName());
                 return null;
             }
             final PduPersister persister = PduPersister.getPduPersister(this);
             final Uri uri = persister.persist(
                     pdu,
-                    Telephony.Mms.Draft.CONTENT_URI,
+                    insertUri,
                     true/*createThreadId*/,
                     true/*groupMmsEnabled*/,
                     null/*preOpenedFiles*/);
             if (uri == null) {
-                LogUtil.e("addMmsDraft: failed to persist message");
+                LogUtil.e("persistMms: failed to persist message");
                 return null;
             }
             final ContentValues values = new ContentValues(3);
@@ -1052,13 +1067,13 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             }
             if (SqliteWrapper.update(this, getContentResolver(), uri, values,
                     null/*where*/, null/*selectionArg*/) != 1) {
-                LogUtil.e("addMmsDraft: failed to update message");
+                LogUtil.e("persistMms: failed to update message");
             }
             return uri;
         } catch (RuntimeException e) {
-            LogUtil.e("addMmsDraft: failed to parse input PDU", e);
+            LogUtil.e("persistMms: failed to parse input PDU", e);
         } catch (MmsException e) {
-            LogUtil.e("addMmsDraft: failed to persist message", e);
+            LogUtil.e("persistMms: failed to persist message", e);
         } finally {
             Binder.restoreCallingIdentity(identity);
         }
