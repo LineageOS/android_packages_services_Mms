@@ -224,12 +224,12 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             // Check if the message can be promoted by the default SMS app.
             // TODO(b/475776188): Add unit tests for mms upgrade via AMTS.
             if (Flags.messagePromotion()) {
-                MessageUpgradeController controller =
-                        new MessageUpgradeController(MmsService.this);
-                if (controller.isMessageUpgradeSupportedAndNotDma(callingPkg)) {
+                Context context = MmsService.this.getApplicationContext();
+                if (MessageUpgradeController.isMessageUpgradeSupportedForPackage(
+                        context, callingUser, callingPkg)) {
                     LogUtil.d("Upgrading MMS via default SMS app.");
-                    controller.upgradeMessage(
-                            contentUri, Runnable::run, (status) -> {
+                    MessageUpgradeController.upgradeMessage(
+                            context, callingUser, contentUri, Runnable::run, (status) -> {
                                 if (status != UPGRADE_STATUS_ACCEPTED) {
                                     // fallback to standard SMS
                                     sendMessageWithoutUpgrade(subId, callingUser, callingPkg,
