@@ -229,7 +229,10 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                         context, callingUser, callingPkg)) {
                     LogUtil.d("Upgrading MMS via default SMS app.");
                     MessageUpgradeController.upgradeMessage(
-                            context, callingUser, contentUri, Runnable::run, (status) -> {
+                            context, callingUser, contentUri,
+                            Collections.singletonList(sentIntent),
+                            Collections.emptyList(),
+                            Runnable::run, (status) -> {
                                 if (status != UPGRADE_STATUS_ACCEPTED) {
                                     // fallback to standard SMS
                                     sendMessageWithoutUpgrade(subId, callingUser, callingPkg,
