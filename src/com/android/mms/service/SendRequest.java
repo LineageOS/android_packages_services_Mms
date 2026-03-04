@@ -18,6 +18,7 @@ package com.android.mms.service;
 
 import android.app.Activity;
 import android.app.PendingIntent;
+import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
@@ -223,9 +224,18 @@ public class SendRequest extends MmsRequest {
                 return null;
             }
             final PduPersister persister = PduPersister.getPduPersister(context);
+            Uri insertUri = Telephony.Mms.Sent.CONTENT_URI;
+            // Ensure that message is updated if the uri points to an existing message in the
+            // telephpny db
+            if (Flags.messagePromotion() && "mms".equalsIgnoreCase(mPduUri.getAuthority())) {
+                long msgId = ContentUris.parseId(mPduUri);
+                if (msgId != -1) {
+                    insertUri = ContentUris.withAppendedId(insertUri, msgId);
+                }
+            }
             final Uri messageUri = persister.persist(
                     pdu,
-                    Telephony.Mms.Sent.CONTENT_URI,
+                    insertUri,
                     true/*createThreadId*/,
                     true/*groupMmsEnabled*/,
                     null/*preOpenedFiles*/);
