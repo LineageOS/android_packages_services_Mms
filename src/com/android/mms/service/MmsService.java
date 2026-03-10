@@ -1141,6 +1141,10 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 try {
                     ContentResolver cr = MmsService.this.getContentResolver();
                     ParcelFileDescriptor pduFd = cr.openFileDescriptor(contentUri, "r");
+                    if (pduFd == null) {
+                        LogUtil.e("Failed to open file descriptor for " + contentUri);
+                        return 0;
+                    }
                     inStream = new ParcelFileDescriptor.AutoCloseInputStream(pduFd);
                     int bytesRead = inStream.read(pduData, 0, pduData.length);
                     if (bytesRead <= 0) {
@@ -1196,6 +1200,10 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 try {
                     ContentResolver cr = MmsService.this.getContentResolver();
                     ParcelFileDescriptor pduFd = cr.openFileDescriptor(contentUri, "w");
+                    if (pduFd == null) {
+                        LogUtil.e("Failed to open file descriptor for " + contentUri);
+                        return Boolean.FALSE;
+                    }
                     outStream = new ParcelFileDescriptor.AutoCloseOutputStream(pduFd);
                     outStream.write(pdu);
                     return Boolean.TRUE;
