@@ -35,7 +35,8 @@
 
     <application android:label="MmsService"
                  android:process="com.android.phone"
-                 android:usesCleartextTraffic="true">
+                 android:usesCleartextTraffic="true"
+                 android:networkSecurityConfig="@xml/network_security_config">
 
         <service android:name=".MmsService"
                  android:enabled="true"
