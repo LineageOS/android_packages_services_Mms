@@ -94,7 +94,8 @@ public class MmsMetricsCollector implements StatsManager.StatsPullAtomCallback {
                 mms.getIsNtn(),
                 mms.getIsNbIotNtn(),
                 mms.getPduLength(),
-                mms.getPlmn());
+                mms.getPlmn(),
+                mms.getHttpStatusCode());
     }
 
     private static StatsEvent buildStatsEvent(OutgoingMms mms) {
@@ -118,7 +119,8 @@ public class MmsMetricsCollector implements StatsManager.StatsPullAtomCallback {
                 mms.getPduLength(),
                 mms.getCallingPackageName(),
                 mms.getAppUid(),
-                mms.getPlmn());
+                mms.getPlmn(),
+                mms.getHttpStatusCode());
     }
 
     @Override

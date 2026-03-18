@@ -17,6 +17,7 @@
 syntax = "proto2";
 
 package com.android.mms;
+
 option java_package = "com.android.mms";
 option java_outer_classname = "PersistMmsAtomsProto";
 option java_multiple_files = true;
@@ -55,6 +56,7 @@ message IncomingMms {
   optional bool is_nb_iot_ntn = 14;
   optional int32 pdu_length = 15;
   optional string plmn = 16;
+  optional int32 http_status_code = 17;
 }
 
 message OutgoingMms {
@@ -77,4 +79,5 @@ message OutgoingMms {
   optional string calling_package_name = 17;
   optional int32 app_uid = 18;
   optional string plmn = 19;
+  optional int32 http_status_code = 20;
 }
