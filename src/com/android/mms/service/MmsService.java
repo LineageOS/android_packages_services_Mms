@@ -328,7 +328,14 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 // ENABLE_MMS_DATA_REQUEST_REASON_OUTGOING_MMS is set for only SendReq case, since
                 // AcknowledgeInd and NotifyRespInd are parts of downloading sequence.
                 // TODO: Should consider ReadRecInd(Read Report)?
-                sendSettingsIntentForFailedMms(!isRawPduSendReq(contentUri, callingUser), subId);
+                if (Flags.messagePromotion()) {
+                    boolean isSendReq = isInternalMmsUri(contentUri)
+                            || isRawPduSendReq(contentUri, callingUser);
+                    sendSettingsIntentForFailedMms(!isSendReq, subId);
+                } else {
+                    sendSettingsIntentForFailedMms(
+                            !isRawPduSendReq(contentUri, callingUser), subId);
+                }
 
                 int resultCode = Flags.mmsDisabledError() ? SmsManager.MMS_ERROR_DATA_DISABLED
                         : SmsManager.MMS_ERROR_NO_DATA_NETWORK;
@@ -1253,5 +1260,15 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
     static String formatCrossStackMessageId(long id) {
         return "{x-message-id:" + id + "}";
+    }
+
+    /**
+     * Checks if the given URI points to the internal MMS database.
+     *
+     * @param uri The URI to check.
+     * @return True if the URI authority is "mms", indicating a database record.
+     */
+    private boolean isInternalMmsUri(Uri uri) {
+        return uri != null && "mms".equals(uri.getAuthority());
     }
 }
