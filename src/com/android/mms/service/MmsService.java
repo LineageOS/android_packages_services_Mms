@@ -226,7 +226,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             if (Flags.messagePromotion()) {
                 Context context = MmsService.this.getApplicationContext();
                 if (MessageUpgradeController.isMessageUpgradeSupportedForPackage(
-                        context, callingUser, callingPkg)) {
+                        context, callingUser, callingPkg, /*shouldLog=*/true)) {
                     Uri messageUri = addMmsToOutbox(contentUri, callingUser, callingPkg);
                     if (messageUri != null) {
                         LogUtil.d("Upgrading MMS via default SMS app.");
