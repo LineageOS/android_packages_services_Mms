@@ -64,6 +64,7 @@ import com.google.android.mms.MmsException;
 import com.google.android.mms.pdu.DeliveryInd;
 import com.google.android.mms.pdu.GenericPdu;
 import com.google.android.mms.pdu.NotificationInd;
+import com.google.android.mms.pdu.PduComposer;
 import com.google.android.mms.pdu.PduParser;
 import com.google.android.mms.pdu.PduPersister;
 import com.google.android.mms.pdu.ReadOrigInd;
@@ -226,7 +227,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             if (Flags.messagePromotion()) {
                 Context context = MmsService.this.getApplicationContext();
                 if (MessageUpgradeController.isMessageUpgradeSupportedForPackage(
-                        context, callingUser, callingPkg)) {
+                        context, callingUser, callingPkg, /*shouldLog=*/true)) {
                     Uri messageUri = addMmsToOutbox(contentUri, callingUser, callingPkg);
                     if (messageUri != null) {
                         LogUtil.d("Upgrading MMS via default SMS app.");
@@ -1162,6 +1163,33 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         }
         Callable<Integer> copyPduToArray = new Callable<Integer>() {
             public Integer call() {
+                // When the message promotion flag is enabled, mms content is already copied in the
+                // telephony db.
+                if (Flags.messagePromotion()) {
+                    // TODO(b/496588261): Currently we're only copying the mms content into the
+                    // telephony db if the flag is enabled and the default SMS app supports message
+                    // promotion. But we should always copy the mms content if the message
+                    // promotion feature is enabled to avoid handling both the internal and
+                    // external URIs.
+                    if (isInternalMmsUri(contentUri)) {
+                        try {
+                            PduPersister persister = PduPersister.getPduPersister(MmsService.this);
+                            GenericPdu pdu = persister.load(contentUri);
+                            if (pdu != null) {
+                                byte[] serializedPdu = new PduComposer(MmsService.this, pdu).make();
+                                if (serializedPdu != null && serializedPdu.length > 0) {
+                                    int bytesRead = Math.min(serializedPdu.length, pduData.length);
+                                    System.arraycopy(serializedPdu, 0, pduData, 0, bytesRead);
+                                    return bytesRead;
+                                }
+                            }
+                        } catch (Exception e) {
+                            LogUtil.e("Failed to load pdu from database URI", e);
+                        }
+                        return 0;
+                    }
+                }
+
                 ParcelFileDescriptor.AutoCloseInputStream inStream = null;
                 try {
                     ContentResolver cr = MmsService.this.getContentResolver();
