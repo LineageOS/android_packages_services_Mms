@@ -56,6 +56,7 @@ import android.util.EventLog;
 import android.util.SparseArray;
 
 import com.android.internal.telephony.IMms;
+import com.android.internal.telephony.SmsApplication;
 import com.android.internal.telephony.flags.Flags;
 import com.android.mms.service.metrics.MmsMetricsCollector;
 import com.android.mms.service.metrics.MmsStats;
@@ -228,7 +229,9 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 Context context = MmsService.this.getApplicationContext();
                 if (MessageUpgradeController.isMessageUpgradeSupportedForPackage(
                         context, callingUser, callingPkg, /*shouldLog=*/true)) {
-                    Uri messageUri = addMmsToOutbox(contentUri, callingUser, callingPkg);
+                    Uri messageUri = persistPendingMmsIfRequired(
+                            contentUri, callingUser, callingPkg);
+                    LogUtil.d("sendMessage messageUri:" + messageUri);
                     if (messageUri != null) {
                         LogUtil.d("Upgrading MMS via default SMS app.");
                         MessageUpgradeController.upgradeMessage(
@@ -1032,7 +1035,25 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         return persistMms(contentUri, Telephony.Mms.Draft.CONTENT_URI, callingUser, creator);
     }
 
-    private Uri addMmsToOutbox(Uri contentUri, int callingUser, String creator) {
+    private Uri persistPendingMmsIfRequired(Uri contentUri, int callingUser, String creator) {
+        // We should skip persisting Bluetooth messages if they are already stored in the telephony
+        // db to avoid duplicate entries. Even though the Bluetooth has already stored the message
+        // in the db, they send us a file provider uri which is a proxy to the internally stored
+        // message.
+        Context context = MmsService.this.getApplicationContext();
+        UserHandle userHandle = UserHandle.of(callingUser);
+        if (!SmsApplication.shouldWriteMessageForPackageAsUser(creator, context, userHandle)) {
+            long msgId = -1;
+            try {
+                msgId = ContentUris.parseId(contentUri);
+            } catch (NumberFormatException e) {
+                // the uri ends with "inbox" or something else like that
+            }
+            if (msgId != -1) {
+                LogUtil.v("persistPendingMmsIfRequired: skip persisting the existing message");
+                return ContentUris.withAppendedId(Telephony.Mms.Draft.CONTENT_URI, msgId);
+            }
+        }
         return persistMms(contentUri, Telephony.Mms.Outbox.CONTENT_URI, callingUser, creator);
     }
 
