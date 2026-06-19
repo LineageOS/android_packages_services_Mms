@@ -371,7 +371,7 @@ public class SendRequest extends MmsRequest {
             return true;
         }
         final int bytesTobeRead = mMmsConfig.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE);
-        mPduData = mRequestManager.readPduFromContentUri(mPduUri, bytesTobeRead, mCallingUser);
+        mPduData = mRequestManager.readPduFromContentUri(mPduUri, bytesTobeRead, mCallingUser, mCreator);
         return (mPduData != null);
     }
 
