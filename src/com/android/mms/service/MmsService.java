@@ -16,12 +16,13 @@
 
 package com.android.mms.service;
 
-import static android.telephony.SmsManager.MMS_ERROR_MMS_DISABLED_BY_CARRIER;
 import static android.service.messaging.AlternativeMessageTransportService.UPGRADE_STATUS_ACCEPTED;
+import static android.telephony.SmsManager.MMS_ERROR_MMS_DISABLED_BY_CARRIER;
 
 import static com.google.android.mms.pdu.PduHeaders.MESSAGE_TYPE;
 import static com.google.android.mms.pdu.PduHeaders.MESSAGE_TYPE_SEND_REQ;
 
+import android.Manifest;
 import android.annotation.Nullable;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -32,6 +33,9 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.content.pm.ProviderInfo;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteException;
 import android.net.Uri;
 import android.os.Binder;
@@ -43,6 +47,7 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.provider.Telephony;
+import android.provider.VoicemailContract;
 import android.service.carrier.CarrierMessagingService;
 import android.telephony.AnomalyReporter;
 import android.telephony.MessageUpgradeController;
@@ -334,11 +339,11 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                 // TODO: Should consider ReadRecInd(Read Report)?
                 if (Flags.messagePromotion()) {
                     boolean isSendReq = isInternalMmsUri(contentUri)
-                            || isRawPduSendReq(contentUri, callingUser);
+                            || isRawPduSendReq(contentUri, callingUser, callingPkg);
                     sendSettingsIntentForFailedMms(!isSendReq, subId);
                 } else {
                     sendSettingsIntentForFailedMms(
-                            !isRawPduSendReq(contentUri, callingUser), subId);
+                            !isRawPduSendReq(contentUri, callingUser, callingPkg), subId);
                 }
 
                 int resultCode = Flags.mmsDisabledError() ? SmsManager.MMS_ERROR_DATA_DISABLED
@@ -642,12 +647,12 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
             }
         }
 
-        private boolean isRawPduSendReq(Uri contentUri, int callingUser) {
+        private boolean isRawPduSendReq(Uri contentUri, int callingUser, String callingPkg) {
             // X-Mms-Message-Type is at the beginning of the message headers always. 1st byte is
             // MMS-filed-name and 2nd byte is MMS-value for X-Mms-Message-Type field.
             // See OMA-TS-MMS_ENC-V1_3-20110913-A, 7. Binary Encoding of ProtocolData Units
             byte[] pduData = new byte[2];
-            int bytesRead = readPduBytesFromContentUri(contentUri, pduData, callingUser);
+            int bytesRead = readPduBytesFromContentUri(contentUri, pduData, callingUser, callingPkg);
 
             // Return true for MESSAGE_TYPE_SEND_REQ only. Otherwise false even wrong PDU case.
             if (bytesRead == 2
@@ -858,7 +863,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
     private Uri importMms(Uri contentUri, String messageId, long timestampSecs,
             boolean seen, boolean read, int callingUser, String creator) {
-        byte[] pduData = readPduFromContentUri(contentUri, MAX_MMS_FILE_SIZE, callingUser);
+        byte[] pduData = readPduFromContentUri(contentUri, MAX_MMS_FILE_SIZE, callingUser, creator);
         if (pduData == null || pduData.length < 1) {
             LogUtil.e("importMessage: empty PDU");
             return null;
@@ -929,7 +934,11 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         if (!uriString.startsWith("content://sms/") && !uriString.startsWith("content://mms/")) {
             return false;
         }
-        if (ContentUris.parseId(uri) == -1) {
+        try {
+            if (ContentUris.parseId(uri) == -1) {
+                return false;
+            }
+        } catch (NumberFormatException e) {
             return false;
         }
         return true;
@@ -1058,7 +1067,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
     }
 
     private Uri persistMms(Uri contentUri, Uri insertUri, int callingUser, String creator) {
-        byte[] pduData = readPduFromContentUri(contentUri, MAX_MMS_FILE_SIZE, callingUser);
+        byte[] pduData = readPduFromContentUri(contentUri, MAX_MMS_FILE_SIZE, callingUser, creator);
         if (pduData == null || pduData.length < 1) {
             LogUtil.e("persistMms: empty PDU");
             return null;
@@ -1149,10 +1158,10 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
      * @return pdu bytes if succeeded else null.
      */
     public byte[] readPduFromContentUri(final Uri contentUri, final int maxSize,
-            int callingUser) {
+            int callingUser, String callingPkg) {
         // Request one extra byte to make sure file not bigger than maxSize
         byte[] pduData = new byte[maxSize + 1];
-        int bytesRead = readPduBytesFromContentUri(contentUri, pduData, callingUser);
+        int bytesRead = readPduBytesFromContentUri(contentUri, pduData, callingUser, callingPkg);
         if (bytesRead <= 0) {
             return null;
         }
@@ -1171,15 +1180,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
      * @return the total number of bytes read into the pduData.
      */
     public int readPduBytesFromContentUri(final Uri contentUri, byte[] pduData,
-            int callingUser) {
-        if (contentUri == null) {
-            LogUtil.e("Uri is null");
-            return 0;
-        }
-        int contentUriUserID = ContentProvider.getUserIdFromUri(contentUri, UserHandle.myUserId());
-        if (callingUser != contentUriUserID) {
-            LogUtil.e("Uri belongs to a different user. contentUriUserId is: " + contentUriUserID
-                    + "and calling User ID is:" + callingUser);
+            int callingUser, String callingPkg) {
+        if (!isValidContentUri(contentUri, callingPkg, callingUser, false /* isWrite */)) {
             return 0;
         }
         Callable<Integer> copyPduToArray = new Callable<Integer>() {
@@ -1258,14 +1260,11 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
      * @param callingUser user id of the calling app
      * @return true if all bytes successfully written else false
      */
-    public boolean writePduToContentUri(final Uri contentUri, final byte[] pdu, int callingUser) {
-        if (contentUri == null || pdu == null) {
+    public boolean writePduToContentUri(final Uri contentUri, final byte[] pdu, int callingUser, String callingPkg) {
+        if (pdu == null) {
             return false;
         }
-        int contentUriUserID = ContentProvider.getUserIdFromUri(contentUri, UserHandle.myUserId());
-        if (callingUser != contentUriUserID) {
-            LogUtil.e("Uri belongs to a different user. contentUriUserId is: " + contentUriUserID
-                    + "and calling User ID is:" + callingUser);
+        if (!isValidContentUri(contentUri, callingPkg, callingUser, true /* isWrite */)) {
             return false;
         }
         final Callable<Boolean> copyDownloadedPduToOutput = new Callable<Boolean>() {
@@ -1309,6 +1308,107 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
     static String formatCrossStackMessageId(long id) {
         return "{x-message-id:" + id + "}";
+    }
+
+    /**
+     * Validates if the calling package has permission to access the given content URI.
+     *
+     * <p>This check is necessary to prevent "Confused Deputy" vulnerabilities where a malicious
+     * app passes a sensitive URI (like a voicemail or contact URI) that the caller does not have
+     * permission to access, but which {@link MmsService} (running as privileged UID 1001) is able
+     * to open.
+     */
+    private boolean isValidContentUri(Uri uri, String callingPkg, int callingUser, boolean isWrite) {
+        if (uri == null) {
+            LogUtil.w("isValidContentUri: URI is null, rejecting.");
+            return false;
+        }
+        // 1. Block non-content URIs (like file://) to prevent local file exfiltration
+        if (!ContentResolver.SCHEME_CONTENT.equalsIgnoreCase(uri.getScheme())) {
+            LogUtil.w("isValidContentUri: Rejecting non-content URI scheme: " + uri.getScheme());
+            return false;
+        }
+
+        // 2. Prevent cross-user access
+        int contentUriUserID = ContentProvider.getUserIdFromUri(uri, UserHandle.myUserId());
+        if (callingUser != contentUriUserID) {
+            LogUtil.e("isValidContentUri: Uri belongs to a different user. contentUriUserId is: " + contentUriUserID
+                    + " and calling User ID is:" + callingUser);
+            return false;
+        }
+
+        try {
+            int callingUid = getPackageManager().getPackageUidAsUser(callingPkg, callingUser);
+
+            // 3. Special-case VoicemailProvider (no manifest readPermission, checked internally)
+            String authority = ContentProvider.getAuthorityWithoutUserId(uri.getAuthority());
+            if (VoicemailContract.AUTHORITY.equals(authority)) {
+                String voicemailPerm = isWrite ? Manifest.permission.WRITE_VOICEMAIL
+                                               : Manifest.permission.READ_VOICEMAIL;
+                // Allow if caller holds global READ_VOICEMAIL/WRITE_VOICEMAIL permission
+                if (checkPermission(voicemailPerm, -1, callingUid) == PackageManager.PERMISSION_GRANTED) {
+                    return true;
+                }
+                // Allow if caller is the source/owner of this voicemail
+                if (isVoicemailSource(uri, callingPkg)) {
+                    return true;
+                }
+                // Fallthrough to standard OS permission checks for explicit URI grants
+            }
+
+            // 4. Check if the provider is owned by the caller or if the caller has global permissions.
+            // Using MATCH_ALL bypasses Package Visibility rules so MmsService can resolve the provider.
+            ProviderInfo pi = getPackageManager().resolveContentProvider(authority, PackageManager.MATCH_ALL);
+            if (pi != null) {
+                if (pi.applicationInfo.uid == callingUid) {
+                    return true;
+                }
+                if (pi.exported) {
+                    String globalPerm = isWrite ? pi.writePermission : pi.readPermission;
+                    if (globalPerm == null || checkPermission(globalPerm, -1, callingUid) == PackageManager.PERMISSION_GRANTED) {
+                        return true;
+                    }
+                }
+            }
+
+            // 5. Delegate to the OS for proper permission evaluation.
+            // This natively handles explicit URI grants.
+            int modeFlags = isWrite ? Intent.FLAG_GRANT_WRITE_URI_PERMISSION : Intent.FLAG_GRANT_READ_URI_PERMISSION;
+            if (checkUriPermission(uri, -1 /* pid */, callingUid, modeFlags) == PackageManager.PERMISSION_GRANTED) {
+                return true;
+            }
+
+            LogUtil.w("isValidContentUri: Blocked unauthorized URI access: " + uri
+                    + " by package " + callingPkg + " (UID " + callingUid + "), isWrite=" + isWrite);
+        } catch (Exception e) {
+            LogUtil.e("isValidContentUri: Error validating URI: " + uri, e);
+        }
+        return false;
+    }
+
+    private boolean isVoicemailSource(Uri uri, String callingPkg) {
+        try {
+            if (ContentUris.parseId(uri) == -1) {
+                return false;
+            }
+        } catch (NumberFormatException e) {
+            return false;
+        }
+        Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri, new String[] { "source_package" }, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                String sourcePkg = cursor.getString(0);
+                return callingPkg.equals(sourcePkg);
+            }
+        } catch (Exception e) {
+            LogUtil.e("isVoicemailSource: Error querying voicemail URI: " + uri, e);
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+        return false;
     }
 
     /**
