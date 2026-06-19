@@ -71,19 +71,21 @@ public abstract class MmsRequest {
          * @param contentUri content uri from which to read
          * @param maxSize maximum number of bytes to read
          * @param callingUser user id of the calling app
+         * @param callingPkg package name of the calling app
          * @return read pdu (else null in case of error or too big)
          */
         public byte[] readPduFromContentUri(final Uri contentUri, final int maxSize,
-                int callingUser);
+                int callingUser, String callingPkg);
 
         /**
          * Write pdu to supplied content uri
          * @param contentUri content uri to which bytes should be written
          * @param pdu pdu bytes to write
          * @param callingUser user id of the calling app
+         * @param callingPkg package name of the calling app
          * @return true in case of success (else false)
          */
-        boolean writePduToContentUri(Uri contentUri, byte[] pdu, int callingUser);
+        boolean writePduToContentUri(Uri contentUri, byte[] pdu, int callingUser, String callingPkg);
     }
 
     // The reference to the pending requests manager (i.e. the MmsService)

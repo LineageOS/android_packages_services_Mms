@@ -249,7 +249,7 @@ public class DownloadRequest extends MmsRequest {
      */
     @Override
     protected boolean transferResponse(Intent fillIn, final byte[] response) {
-        return mRequestManager.writePduToContentUri(mContentUri, response, mCallingUser);
+        return mRequestManager.writePduToContentUri(mContentUri, response, mCallingUser, mCreator);
     }
 
     @Override
