@@ -18,13 +18,19 @@ package com.android.mms.service;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.telephony.CarrierConfigManager;
@@ -38,13 +44,20 @@ import androidx.test.core.app.ApplicationProvider;
 
 import com.android.mms.service.metrics.MmsStats;
 import com.android.mms.service.metrics.PersistMmsAtomsStorage;
+import com.google.android.mms.pdu.GenericPdu;
+import com.google.android.mms.pdu.PduComposer;
+import com.google.android.mms.pdu.PduPersister;
+import com.google.android.mms.pdu.SendReq;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockitoAnnotations;
 import org.robolectric.RobolectricTestRunner;
+
+import java.lang.reflect.Field;
 
 @RunWith(RobolectricTestRunner.class)
 public class MmsRequestRoboTest {
@@ -158,5 +171,66 @@ public class MmsRequestRoboTest {
         boolean okToDownload = request.canTransferPayloadOnCurrentNetwork();
 
         assertThat(okToDownload).isTrue();
+    }
+
+    @Test
+    public void testPersistIfRequired_caseVariantAuthority_doesNotOverwrite() throws Exception {
+        // Setup mock PduPersister
+        PduPersister mockPersister = mock(PduPersister.class);
+        Field contextField = PduPersister.class.getDeclaredField("mContext");
+        contextField.setAccessible(true);
+        contextField.set(mockPersister, mContext);
+
+        Field field = PduPersister.class.getDeclaredField("sPersister");
+        field.setAccessible(true);
+        field.set(null, mockPersister);
+
+        // Grant WRITE_SMS permission to Context spy
+        doReturn(PackageManager.PERMISSION_GRANTED)
+                .when(mContext)
+                .checkPermission(eq(android.Manifest.permission.WRITE_SMS), anyInt(), anyInt());
+
+        // Prepare dummy pdu raw bytes representing a SendReq
+        SendReq sendReq = new SendReq();
+        PduComposer composer = new PduComposer(mContext, sendReq);
+        byte[] pduData = composer.make();
+        if (pduData == null) {
+            pduData = new byte[]{
+                (byte) 0x8C, (byte) 0x80, // X-Mms-Message-Type: m-send-req
+                (byte) 0x98, (byte) 0x61,
+                (byte) 0x62, (byte) 0x63, (byte) 0x00, // X-Mms-Transaction-Id: abc
+                (byte) 0x8D, (byte) 0x90, // X-Mms-MMS-Version: 1.0
+                (byte) 0x89, (byte) 0x14, // From
+                (byte) 0x8A, (byte) 0x80 // To
+            };
+        }
+
+        // We want to test case-variant authority "MMS" with ID 123
+        Uri caseVariantUri = Uri.parse("content://MMS/123");
+
+        SendRequest request = new SendRequest(mMmsService, mSubId, caseVariantUri,
+                sFakeLocationUri, /* sentIntent= */ null, /* callingUser= */ CALLING_USER,
+                /* callingPkg= */ "com.android.mms.service", mCarrierConfigValues, /* context= */ mContext,
+                sFakeMessageId, mMmsStats, mTelephonyManager);
+        request.mPduData = pduData;
+
+        // Stub mockPersister.persist to return a dummy URI
+        Uri persistedUri = Uri.parse("content://mms/sent/123");
+        when(mockPersister.persist(any(GenericPdu.class), any(Uri.class), anyBoolean(), anyBoolean(), any()))
+                .thenReturn(persistedUri);
+
+        // Call persistIfRequired
+        Uri resultUri = request.persistIfRequired(mContext, Activity.RESULT_OK, /* response= */ null);
+
+        // Capture the insertUri passed to persister.persist
+        ArgumentCaptor<Uri> uriCaptor = ArgumentCaptor.forClass(Uri.class);
+        verify(mockPersister).persist(any(GenericPdu.class), uriCaptor.capture(), anyBoolean(), anyBoolean(), any());
+
+        // Assert that the captured URI has authority "mms" and does NOT have ID appended.
+        // If it was case-insensitive (broken), it would have matched "MMS", parsed ID 123, and appended it: "content://mms/sent/123".
+        // With case-sensitive fix, it does NOT match "MMS", so it inserts to default: "content://mms/sent".
+        Uri capturedUri = uriCaptor.getValue();
+        assertThat(capturedUri.getAuthority()).isEqualTo("mms");
+        assertThat(capturedUri.toString()).isEqualTo("content://mms/sent");
     }
 }
