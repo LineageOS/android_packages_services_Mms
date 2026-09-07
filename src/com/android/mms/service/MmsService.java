@@ -214,11 +214,16 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
 
     private IMms.Stub mStub = new IMms.Stub() {
         @Override
-        public void sendMessage(int subId, int callingUser, String callingPkg,
+        public void sendMessage(int subId, String callingPkg,
                 Uri contentUri, String locationUrl, Bundle configOverrides,
                 PendingIntent sentIntent, long messageId, String attributionTag) {
             LogUtil.d("sendMessage " + formatCrossStackMessageId(messageId));
             enforceSystemUid();
+            // IMms.sendMessage() dropped the caller-supplied callingUser parameter
+            // upstream (a client-supplied user id is spoofable); derive it from the
+            // actual Binder call instead, same security property, no API change needed
+            // at the call sites below.
+            final int callingUser = UserHandle.getCallingUserId();
 
             MmsStats mmsStats = new MmsStats(MmsService.this,
                     mMmsMetricsCollector.getAtomsStorage(), subId, getTelephonyManager(subId),
@@ -298,7 +303,7 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         }
 
         @Override
-        public void downloadMessage(int subId, int callingUser, String callingPkg,
+        public void downloadMessage(int subId, String callingPkg,
                 String locationUrl, Uri contentUri, Bundle configOverrides,
                 PendingIntent downloadedIntent, long messageId, String attributionTag) {
             // If the subId is no longer active it could be caused by an MVNO using multiple
@@ -308,6 +313,8 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
                     ", " + formatCrossStackMessageId(messageId));
 
             enforceSystemUid();
+            // See sendMessage() above for why this is derived rather than a parameter.
+            final int callingUser = UserHandle.getCallingUserId();
 
             MmsStats mmsStats = new MmsStats(MmsService.this,
                     mMmsMetricsCollector.getAtomsStorage(), subId, getTelephonyManager(subId),
@@ -441,10 +448,12 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         }
 
         @Override
-        public Uri importMultimediaMessage(int callingUser, String callingPkg,
+        public Uri importMultimediaMessage(String callingPkg,
                 Uri contentUri, String messageId, long timestampSecs, boolean seen, boolean read) {
             LogUtil.d("importMultimediaMessage");
             enforceSystemUid();
+            // See sendMessage() above for why this is derived rather than a parameter.
+            final int callingUser = UserHandle.getCallingUserId();
             return importMms(contentUri, messageId, timestampSecs, seen,
                 read, callingUser, callingPkg);
         }
@@ -536,10 +545,12 @@ public class MmsService extends Service implements MmsRequest.RequestManager {
         }
 
         @Override
-        public Uri addMultimediaMessageDraft(int callingUser,
+        public Uri addMultimediaMessageDraft(
                 String callingPkg, Uri contentUri) throws RemoteException {
             LogUtil.d("addMultimediaMessageDraft");
             enforceSystemUid();
+            // See sendMessage() above for why this is derived rather than a parameter.
+            final int callingUser = UserHandle.getCallingUserId();
             return addMmsDraft(contentUri, callingUser, callingPkg);
         }
 
